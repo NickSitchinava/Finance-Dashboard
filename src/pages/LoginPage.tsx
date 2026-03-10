@@ -31,7 +31,7 @@ export default function LoginPage() {
         // If email confirmation is required, Supabase would send an email here.
         // For simplicity, we assume auto-confirm or they check their email.
         setErrorMsg(
-          "Sign up successful! Check your email for confirmation, or try logging in.",
+          "Sign up successful! Please Confirm Via Email and Sign in.",
         );
         setMode("signin");
       } else {
@@ -43,7 +43,7 @@ export default function LoginPage() {
         navigate("/"); // Go to dashboard!
       }
     } catch (error: any) {
-      setErrorMsg(error.message || "An error occurred during authentication.");
+      setErrorMsg(error.message || "Username or password is incorrect.");
     } finally {
       setLoading(false);
     }
@@ -53,7 +53,7 @@ export default function LoginPage() {
     <div className="login-page">
       <div className="login-card card">
         <div className="login-card__header">
-          <div className="login-card__logo">N</div>
+          <div className="login-card__logo">P-Dashboard</div>
           <h2>Personal Dashboard</h2>
           <p>
             {mode === "signin"

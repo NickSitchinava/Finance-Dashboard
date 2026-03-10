@@ -1,0 +1,291 @@
+:root {
+  --settings-nav-width: 240px;
+}
+
+/* ── Light Mode Overrides ─────────────────────── */
+html.light-mode {
+  --bg-base: #e8e8ee;
+  --bg-surface: #efeff4;
+  --bg-elevated: #e0e0e8;
+  --bg-sidebar: #e4e4ea;
+  --text-primary: #1a1a1f;
+  --text-secondary: #5a5a6e;
+  --border: #c8c8d4;
+}
+
+/* ── Layout ───────────────────────────────────── */
+.settings-page {
+  display: flex;
+  gap: 32px;
+  min-height: calc(100vh - 120px);
+}
+
+.settings-nav {
+  width: var(--settings-nav-width);
+  flex-shrink: 0;
+}
+
+.settings-nav__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-nav__btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  font-weight: 500;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.settings-nav__btn:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.settings-nav__btn--active {
+  background: rgba(232, 123, 58, 0.1);
+  color: var(--accent);
+}
+
+.settings-content {
+  flex: 1;
+  max-width: 800px;
+}
+
+/* ── Message Alert ────────────────────────────── */
+.settings-message {
+  margin-bottom: 24px;
+}
+
+/* ── Section & Card ───────────────────────────── */
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.settings-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+}
+
+.settings-card__title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin: 0 0 8px;
+  color: var(--text-primary);
+}
+
+.settings-card__desc {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin: 0 0 24px;
+}
+
+/* ── Profile Upload ───────────────────────────── */
+.profile-upload {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 32px;
+}
+
+.profile-upload__avatar {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.5rem;
+  font-weight: 600;
+  color: var(--accent);
+  border: 2px solid var(--border);
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.profile-upload__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-upload__overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s;
+  cursor: pointer;
+}
+
+.profile-upload__avatar:hover .profile-upload__overlay {
+  opacity: 1;
+}
+
+.profile-upload__hint {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin: 8px 0 0;
+}
+
+/* ── Utilities ────────────────────────────────── */
+.input--disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+/* ── Toggle Groups ────────────────────────────── */
+.toggle-group {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.toggle-group:last-child {
+  border-bottom: none;
+}
+
+.toggle-group__info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.toggle-group__label {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.toggle-group__desc {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+/* ── Notifications Section ────────────────────── */
+.notifications-section {
+  margin-top: 24px;
+}
+
+.notifications-section__title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 8px;
+}
+
+/* ── Save Button ──────────────────────────────── */
+.settings-save-btn {
+  margin-top: 24px;
+}
+
+/* ── Toggle Switch ────────────────────────────── */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background-color: var(--border);
+  transition: 0.3s;
+  border-radius: 24px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.3s;
+  border-radius: 50%;
+}
+
+input:checked + .slider {
+  background-color: var(--accent);
+}
+
+input:checked + .slider:before {
+  transform: translateX(20px);
+}
+
+/* ── Small button variant ─────────────────────── */
+.btn--sm {
+  padding: 6px 14px;
+  font-size: 0.8125rem;
+}
+
+/* ── Responsive ───────────────────────────────── */
+@media (max-width: 768px) {
+  .settings-page {
+    flex-direction: column;
+  }
+
+  .settings-nav {
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: 8px;
+  }
+
+  .settings-nav__list {
+    flex-direction: row;
+  }
+
+  .settings-nav__btn {
+    white-space: nowrap;
+  }
+}

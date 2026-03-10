@@ -1,0 +1,12 @@
+.th--center {
+  text-align: center;
+}
+
+.td--center {
+  text-align: center;
+}
+
+.td--revenue {
+  color: var(--accent);
+  font-weight: 600;
+}

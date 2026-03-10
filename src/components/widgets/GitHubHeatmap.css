@@ -1,0 +1,80 @@
+.heatmap-widget {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.heatmap-widget__title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Grid */
+.heatmap-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.heatmap-grid__row {
+  display: flex;
+  gap: 4px;
+}
+
+.heatmap__cell {
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.heatmap__cell--empty {
+  background: transparent;
+}
+
+.heatmap__cell--0 {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+}
+
+.heatmap__cell--1 {
+  background: rgba(232, 123, 58, 0.2);
+}
+
+.heatmap__cell--2 {
+  background: rgba(232, 123, 58, 0.4);
+}
+
+.heatmap__cell--3 {
+  background: rgba(232, 123, 58, 0.65);
+}
+
+.heatmap__cell--4 {
+  background: var(--accent);
+}
+
+/* Stats */
+.heatmap-stats {
+  display: flex;
+  gap: 24px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+
+.heatmap-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.heatmap-stat__value {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.heatmap-stat__label {
+  font-size: 0.6875rem;
+  color: var(--text-secondary);
+}

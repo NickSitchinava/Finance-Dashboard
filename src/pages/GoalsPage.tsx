@@ -1,0 +1,200 @@
+import { useState, useEffect } from "react";
+import StatCard from "../components/ui/StatCard";
+import MilestoneTimeline from "../components/ui/MilestoneTimeline";
+import GoalCard from "../components/ui/GoalCard";
+import AddGoalModal from "../components/ui/AddGoalModal";
+import AddMilestoneModal from "../components/ui/AddMilestoneModal";
+import ConfirmModal from "../components/ui/ConfirmModal";
+import { supabase } from "../lib/supabase";
+import { useAuth } from "../components/auth/AuthProvider";
+
+export default function GoalsPage() {
+  const { user } = useAuth();
+  const [goals, setGoals] = useState<any[]>([]);
+  const [milestones, setMilestones] = useState<any[]>([]);
+  const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
+  const [isMilestoneModalOpen, setIsMilestoneModalOpen] = useState(false);
+
+  const [goalToEdit, setGoalToEdit] = useState<any>(null);
+  const [milestoneToEdit, setMilestoneToEdit] = useState<any>(null);
+  const [itemToDelete, setItemToDelete] = useState<{
+    id: string;
+    type: "goal" | "milestone";
+  } | null>(null);
+
+  const [loading, setLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  async function fetchGoalsAndMilestones() {
+    if (!user) return;
+    setLoading(true);
+
+    const [{ data: goalsData }, { data: milestonesData }] = await Promise.all([
+      supabase
+        .from("goals")
+        .select("*")
+        .order("target_date", { ascending: true }),
+      supabase
+        .from("milestones")
+        .select("*")
+        .order("target_date", { ascending: true }),
+    ]);
+
+    if (goalsData) {
+      const formatted = goalsData.map((d) => ({
+        ...d,
+        targetDate: d.target_date,
+        percentComplete: d.percent_complete,
+      }));
+      setGoals(formatted);
+    }
+
+    if (milestonesData) {
+      setMilestones(milestonesData);
+    }
+
+    setLoading(false);
+  }
+
+  async function handleDeleteConfirm() {
+    if (!itemToDelete) return;
+    setIsDeleting(true);
+    const table = itemToDelete.type === "goal" ? "goals" : "milestones";
+    await supabase.from(table).delete().eq("id", itemToDelete.id);
+    setIsDeleting(false);
+    setItemToDelete(null);
+    fetchGoalsAndMilestones();
+  }
+
+  function openEditGoal(g: any) {
+    setGoalToEdit(g);
+    setIsGoalModalOpen(true);
+  }
+
+  function openAddGoal() {
+    setGoalToEdit(null);
+    setIsGoalModalOpen(true);
+  }
+
+  function openEditMilestone(m: any) {
+    setMilestoneToEdit(m);
+    setIsMilestoneModalOpen(true);
+  }
+
+  function openAddMilestone() {
+    setMilestoneToEdit(null);
+    setIsMilestoneModalOpen(true);
+  }
+
+  useEffect(() => {
+    fetchGoalsAndMilestones();
+  }, [user]);
+
+  // Recalculate stats based on live data
+  const liveStats = [
+    { label: "Total Goals", value: goals.length.toString() },
+    {
+      label: "Completed",
+      value: goals.filter((g) => g.percentComplete === 100).length.toString(),
+    },
+    {
+      label: "In Progress",
+      value: goals.filter((g) => g.percentComplete < 100).length.toString(),
+    },
+  ];
+
+  return (
+    <div className="page">
+      {/* Header & Add Button */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          marginBottom: -8,
+          gap: 12,
+        }}
+      >
+        <button className="btn btn--outline" onClick={openAddMilestone}>
+          <span style={{ fontSize: "1.2rem", marginRight: 4 }}>+</span> New
+          Milestone
+        </button>
+        <button className="btn btn--primary" onClick={openAddGoal}>
+          <span style={{ fontSize: "1.2rem", marginRight: 4 }}>+</span> New Goal
+        </button>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="page__row page__row--3">
+        {liveStats.map((stat) => (
+          <StatCard key={stat.label} {...stat} />
+        ))}
+      </div>
+
+      {/* Milestone Timeline */}
+      <div className="page__row page__row--full">
+        <MilestoneTimeline
+          milestones={milestones.map((m) => ({
+            ...m,
+            date: m.target_date
+              ? new Date(m.target_date).toLocaleDateString([], {
+                  month: "short",
+                  year: "numeric",
+                })
+              : "No date",
+          }))}
+          onEdit={openEditMilestone}
+          onDelete={(m) => setItemToDelete({ id: m.id, type: "milestone" })}
+        />
+      </div>
+
+      {/* Goal Cards Grid - 3 columns */}
+      <div className="page__row page__row--3">
+        {loading ? (
+          <div style={{ color: "var(--text-secondary)" }}>Loading goals...</div>
+        ) : goals.length === 0 ? (
+          <div style={{ color: "var(--text-secondary)" }}>
+            No goals yet. Add one above!
+          </div>
+        ) : (
+          goals.map((goal) => (
+            <GoalCard
+              key={goal.id}
+              goal={goal}
+              onEdit={openEditGoal}
+              onDelete={(g) =>
+                g.id && setItemToDelete({ id: g.id, type: "goal" })
+              }
+            />
+          ))
+        )}
+      </div>
+
+      <AddGoalModal
+        isOpen={isGoalModalOpen}
+        onClose={() => setIsGoalModalOpen(false)}
+        onGoalAdded={fetchGoalsAndMilestones}
+        goalToEdit={goalToEdit}
+      />
+      <AddMilestoneModal
+        isOpen={isMilestoneModalOpen}
+        onClose={() => setIsMilestoneModalOpen(false)}
+        onMilestoneAdded={fetchGoalsAndMilestones}
+        milestoneToEdit={milestoneToEdit}
+      />
+
+      <ConfirmModal
+        isOpen={!!itemToDelete}
+        onClose={() => setItemToDelete(null)}
+        title={
+          itemToDelete?.type === "goal" ? "Delete Goal" : "Delete Milestone"
+        }
+        message="Are you sure you want to delete this? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        onConfirm={handleDeleteConfirm}
+        confirmVariant="danger"
+        loading={isDeleting}
+      />
+    </div>
+  );
+}

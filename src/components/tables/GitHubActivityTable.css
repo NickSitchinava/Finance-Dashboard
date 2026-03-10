@@ -1,0 +1,11 @@
+.table-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 22px 0;
+}
+
+.td--description {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}

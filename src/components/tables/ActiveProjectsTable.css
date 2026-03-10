@@ -1,0 +1,51 @@
+.table-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.table-card__title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  padding: 20px 22px 16px;
+}
+
+.col-actions {
+  width: 80px;
+  text-align: right;
+}
+
+.table-actions {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.td--secondary {
+  color: var(--text-secondary);
+}
+
+.project-name-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.project-name-link {
+  font-weight: 500;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.project-name-link:hover {
+  text-decoration: underline;
+}
+
+.project-name-text {
+  font-weight: 500;
+}
+
+.project-links {
+  display: flex;
+  gap: 8px;
+}

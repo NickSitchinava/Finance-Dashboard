@@ -6,6 +6,8 @@ import GitHubHeatmap from "../components/widgets/GitHubHeatmap";
 import GitHubActivityTable from "../components/tables/GitHubActivityTable";
 import AddGitHubActivityModal from "../components/ui/AddGitHubActivityModal";
 import AddProjectModal from "../components/ui/AddProjectModal";
+import LogHoursModal from "../components/ui/LogHoursModal";
+import LogProgressModal from "../components/ui/LogProgressModal";
 import ConfirmModal from "../components/ui/ConfirmModal";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../components/auth/AuthProvider";
@@ -18,7 +20,6 @@ export default function ProjectsPage() {
   const [loading, setLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // GitHub States
   const [githubActivities, setGithubActivities] = useState<any[]>([]);
   const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
   const [activityToEdit, setActivityToEdit] = useState<any>(null);
@@ -27,29 +28,31 @@ export default function ProjectsPage() {
     total: 0,
     streak: 0,
   });
+
   const [itemToDelete, setItemToDelete] = useState<{
     id: string;
     type: "project" | "github";
   } | null>(null);
+
+  const [hoursProject, setHoursProject] = useState<any>(null);
+  const [isHoursModalOpen, setIsHoursModalOpen] = useState(false);
+
+  const [progressProject, setProgressProject] = useState<any>(null);
+  const [isProgressModalOpen, setIsProgressModalOpen] = useState(false);
 
   async function fetchProjects() {
     if (!user) return;
     setLoading(true);
     const { data } = await supabase
       .from("projects")
-      .select(
-        `
-        *,
-        clients ( name )
-      `,
-      )
+      .select("*, clients ( name )")
       .order("created_at", { ascending: false });
 
     if (data) {
       const formatted = data.map((d) => ({
         ...d,
         client: d.clients?.name || "Unknown",
-        techStack: d.tech_stack,
+        techStack: d.tech_stack ?? [],
         startDate: d.start_date,
         hoursLogged: Number(d.hours_logged),
         percentComplete: Number(d.percent_complete),
@@ -86,8 +89,7 @@ export default function ProjectsPage() {
   async function handleDeleteConfirm() {
     if (!itemToDelete) return;
     setIsDeleting(true);
-    const table =
-      itemToDelete.type === "project" ? "projects" : "github_activity";
+    const table = itemToDelete.type === "project" ? "projects" : "github_activity";
     await supabase.from(table).delete().eq("id", itemToDelete.id);
     setIsDeleting(false);
     setItemToDelete(null);
@@ -115,22 +117,26 @@ export default function ProjectsPage() {
     setIsActivityModalOpen(true);
   }
 
+  function openLogHours(p: any) {
+    setHoursProject(p);
+    setIsHoursModalOpen(true);
+  }
+
+  function openLogProgress(p: any) {
+    setProgressProject(p);
+    setIsProgressModalOpen(true);
+  }
+
   useEffect(() => {
     fetchProjects();
     fetchGithubActivity();
   }, [user]);
 
-  // Dynamic stats
   const totalHours = projects.reduce((sum, p) => sum + p.hoursLogged, 0);
-  const avgHours = projects.length
-    ? Math.round(totalHours / projects.length)
-    : 0;
+  const avgHours = projects.length ? Math.round(totalHours / projects.length) : 0;
+
   const liveStats = [
-    {
-      label: "Active Projects",
-      value: projects.length.toString(),
-      trend: "up" as const,
-    },
+    { label: "Active Projects", value: projects.length.toString(), trend: "up" as const },
     { label: "Total Hours Logged", value: totalHours.toString() },
     { label: "Avg Hours/Project", value: avgHours.toString() },
   ];
@@ -142,14 +148,7 @@ export default function ProjectsPage() {
 
   return (
     <div className="page">
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "flex-end",
-          marginBottom: -8,
-          gap: 12,
-        }}
-      >
+      <div className="page__toolbar">
         <button className="btn btn--outline" onClick={openAddActivity}>
           + New Activity
         </button>
@@ -183,16 +182,14 @@ export default function ProjectsPage() {
 
       <div className="page__row page__row--full">
         {loading ? (
-          <div style={{ color: "var(--text-secondary)" }}>
-            Loading projects...
-          </div>
+          <div className="page-loading">Loading projects...</div>
         ) : (
           <ProjectsTable
             data={projects}
             onEdit={openEditModal}
-            onDelete={(p) =>
-              p.id && setItemToDelete({ id: p.id, type: "project" })
-            }
+            onDelete={(p) => p.id && setItemToDelete({ id: p.id, type: "project" })}
+            onLogHours={openLogHours}
+            onLogProgress={openLogProgress}
           />
         )}
       </div>
@@ -211,14 +208,24 @@ export default function ProjectsPage() {
         activityToEdit={activityToEdit}
       />
 
+      <LogHoursModal
+        isOpen={isHoursModalOpen}
+        onClose={() => setIsHoursModalOpen(false)}
+        onSaved={fetchProjects}
+        project={hoursProject}
+      />
+
+      <LogProgressModal
+        isOpen={isProgressModalOpen}
+        onClose={() => setIsProgressModalOpen(false)}
+        onSaved={fetchProjects}
+        project={progressProject}
+      />
+
       <ConfirmModal
         isOpen={!!itemToDelete}
         onClose={() => setItemToDelete(null)}
-        title={
-          itemToDelete?.type === "project"
-            ? "Delete Project"
-            : "Delete Activity"
-        }
+        title={itemToDelete?.type === "project" ? "Delete Project" : "Delete Activity"}
         message="Are you sure you want to delete this? This action cannot be undone."
         confirmText="Delete"
         cancelText="Cancel"

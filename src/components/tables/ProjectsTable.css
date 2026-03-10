@@ -42,3 +42,18 @@
   font-size: 0.6875rem;
   color: var(--text-secondary);
 }
+.action-btn--hours {
+  color: #3296FA;
+}
+
+.action-btn--hours:hover {
+  background: rgba(50, 150, 250, 0.1);
+}
+
+.action-btn--progress {
+  color: #34C759;
+}
+
+.action-btn--progress:hover {
+  background: rgba(52, 199, 89, 0.1);
+}

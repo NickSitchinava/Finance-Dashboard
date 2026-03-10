@@ -16,6 +16,8 @@ interface AddProjectModalProps {
   projectToEdit?: any | null;
 }
 
+const NEW_CLIENT_VALUE = "__new__";
+
 export default function AddProjectModal({
   isOpen,
   onClose,
@@ -29,6 +31,8 @@ export default function AddProjectModal({
 
   const [name, setName] = useState("");
   const [clientId, setClientId] = useState("");
+  const [newClientName, setNewClientName] = useState("");
+  const [isAddingClient, setIsAddingClient] = useState(false);
   const [techStackInput, setTechStackInput] = useState("");
   const [startDate, setStartDate] = useState("");
   const [deadline, setDeadline] = useState("");
@@ -80,11 +84,32 @@ export default function AddProjectModal({
       setGithubLink("");
       setWebsiteLink("");
       setOtherLink("");
+      setNewClientName("");
+      setIsAddingClient(false);
       if (clients.length > 0) setClientId(clients[0].id);
       setErrorMsg("");
     }
     setShowConfirm(false);
   }, [projectToEdit, isOpen, clients]);
+
+  async function handleCreateClient() {
+    if (!newClientName.trim() || !user) return;
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("clients")
+      .insert([{ name: newClientName.trim(), user_id: user.id }])
+      .select()
+      .single();
+    setLoading(false);
+    if (data && !error) {
+      setClients((prev) => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+      setClientId(data.id);
+      setNewClientName("");
+      setIsAddingClient(false);
+    } else {
+      setErrorMsg(error?.message || "Failed to create client.");
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -193,43 +218,51 @@ export default function AddProjectModal({
 
         <div className="form-group">
           <label htmlFor="project-client">Client</label>
-          {clients.length > 0 ? (
-            <select
-              id="project-client"
-              required
-              value={clientId}
-              onChange={(e) => setClientId(e.target.value)}
-            >
-              {clients.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <div className="no-clients-msg">
-              No clients found. Please add a client first.
+          {isAddingClient ? (
+            <div className="new-client-row">
+              <input
+                type="text"
+                placeholder="New client name"
+                value={newClientName}
+                onChange={(e) => setNewClientName(e.target.value)}
+                autoFocus
+              />
               <button
                 type="button"
-                className="btn--inline-link"
-                onClick={async () => {
-                  const clientName = prompt("Enter new client name:");
-                  if (clientName && clientName.trim()) {
-                    const { data, error } = await supabase
-                      .from("clients")
-                      .insert([{ name: clientName.trim(), user_id: user?.id }])
-                      .select()
-                      .single();
-                    if (data && !error) {
-                      setClients([...clients, data]);
-                      setClientId(data.id);
-                    }
-                  }
-                }}
+                className="btn btn--primary btn--sm"
+                onClick={handleCreateClient}
+                disabled={loading || !newClientName.trim()}
               >
-                + Quick Add Client
+                Add
+              </button>
+              <button
+                type="button"
+                className="btn btn--outline btn--sm"
+                onClick={() => { setIsAddingClient(false); setNewClientName(""); }}
+              >
+                Cancel
               </button>
             </div>
+          ) : (
+            <select
+              id="project-client"
+              value={clientId}
+              onChange={(e) => {
+                if (e.target.value === NEW_CLIENT_VALUE) {
+                  setIsAddingClient(true);
+                } else {
+                  setClientId(e.target.value);
+                }
+              }}
+            >
+              {clients.length === 0 && (
+                <option value="" disabled>No clients yet</option>
+              )}
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+              <option value={NEW_CLIENT_VALUE}>+ Add New Client</option>
+            </select>
           )}
         </div>
 
@@ -294,7 +327,6 @@ export default function AddProjectModal({
               className="input--dark-date"
             />
           </div>
-
           <div className="form-group">
             <label htmlFor="project-deadline">Deadline</label>
             <input
@@ -320,13 +352,9 @@ export default function AddProjectModal({
           <button
             type="submit"
             className="btn btn--primary"
-            disabled={loading || clients.length === 0}
+            disabled={loading || !clientId}
           >
-            {loading
-              ? "Saving..."
-              : projectToEdit
-              ? "Update Project"
-              : "Create Project"}
+            {loading ? "Saving..." : projectToEdit ? "Update Project" : "Create Project"}
           </button>
         </div>
       </form>

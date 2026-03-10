@@ -19,6 +19,8 @@ interface ProjectsTableProps {
   data: FullProject[];
   onEdit?: (project: FullProject) => void;
   onDelete?: (project: FullProject) => void;
+  onLogHours?: (project: FullProject) => void;
+  onLogProgress?: (project: FullProject) => void;
 }
 
 const statusClass: Record<string, string> = {
@@ -65,10 +67,27 @@ const DeleteIcon = () => (
   </svg>
 );
 
+const ClockIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" />
+    <polyline points="12 6 12 12 16 14" />
+  </svg>
+);
+
+const ProgressIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="12" y1="20" x2="12" y2="10" />
+    <line x1="18" y1="20" x2="18" y2="4" />
+    <line x1="6" y1="20" x2="6" y2="16" />
+  </svg>
+);
+
 export default function ProjectsTable({
   data,
   onEdit,
   onDelete,
+  onLogHours,
+  onLogProgress,
 }: ProjectsTableProps) {
   return (
     <div className="card table-card">
@@ -94,12 +113,7 @@ export default function ProjectsTable({
                 <td>
                   <div className="project-name-cell">
                     {p.website_link ? (
-                      <a
-                        href={p.website_link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="project-name-link"
-                      >
+                      <a href={p.website_link} target="_blank" rel="noopener noreferrer" className="project-name-link">
                         {p.name}
                       </a>
                     ) : (
@@ -107,35 +121,17 @@ export default function ProjectsTable({
                     )}
                     <div className="project-links">
                       {p.github_link && (
-                        <a
-                          href={p.github_link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="link-icon"
-                          title="GitHub"
-                        >
+                        <a href={p.github_link} target="_blank" rel="noopener noreferrer" className="link-icon" title="GitHub">
                           <GitHubIcon />
                         </a>
                       )}
                       {p.website_link && (
-                        <a
-                          href={p.website_link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="link-icon"
-                          title="Website"
-                        >
+                        <a href={p.website_link} target="_blank" rel="noopener noreferrer" className="link-icon" title="Website">
                           <WebIcon />
                         </a>
                       )}
                       {p.other_link && (
-                        <a
-                          href={p.other_link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="link-icon"
-                          title="Other Link"
-                        >
+                        <a href={p.other_link} target="_blank" rel="noopener noreferrer" className="link-icon" title="Other Link">
                           <LinkIcon />
                         </a>
                       )}
@@ -160,9 +156,7 @@ export default function ProjectsTable({
                       style={{ width: `${p.percentComplete}%` }}
                     />
                   </div>
-                  <span className="progress-bar__label">
-                    {p.percentComplete}%
-                  </span>
+                  <span className="progress-bar__label">{p.percentComplete}%</span>
                 </td>
                 <td>
                   <span className={`badge ${statusClass[p.status]}`}>
@@ -171,6 +165,20 @@ export default function ProjectsTable({
                 </td>
                 <td className="col-actions">
                   <div className="table-actions">
+                    <button
+                      className="action-btn action-btn--hours"
+                      onClick={() => onLogHours?.(p)}
+                      title="Log Hours"
+                    >
+                      <ClockIcon />
+                    </button>
+                    <button
+                      className="action-btn action-btn--progress"
+                      onClick={() => onLogProgress?.(p)}
+                      title="Update Progress"
+                    >
+                      <ProgressIcon />
+                    </button>
                     <button
                       className="action-btn action-btn--edit"
                       onClick={() => onEdit?.(p)}

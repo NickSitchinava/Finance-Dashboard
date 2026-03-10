@@ -514,6 +514,7 @@ img {
   display: flex;
   justify-content: flex-end;
   margin-bottom: 16px;
+  gap: 12px;
 }
 
 .btn__icon {

@@ -79,9 +79,9 @@ export default function Sidebar({ isOpen, closeSidebar, onToggleChat }: SidebarP
   return (
     <aside className={`sidebar${isOpen ? " sidebar--open" : ""}`}>
       <div className="sidebar__profile">
-        <div className="sidebar__avatar">N</div>
+        <div className="sidebar__avatar">FD</div>
         <div className="sidebar__profile-info">
-          <span className="sidebar__name">Nick</span>
+          <span className="sidebar__name">Finance Dashboard</span>
           <span className="sidebar__status">
             <span className="sidebar__online-dot" />
             Online

@@ -53,8 +53,8 @@ export default function LoginPage() {
     <div className="login-page">
       <div className="login-card card">
         <div className="login-card__header">
-          <div className="login-card__logo">P-D</div>
-          <h2>Personal Dashboard</h2>
+          <div className="login-card__logo">FD</div>
+          <h2>Finance Dashboard</h2>
           <p>
             {mode === "signin"
               ? "Sign in to your account"

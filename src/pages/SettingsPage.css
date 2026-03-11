@@ -4,13 +4,13 @@
 
 /* ── Light Mode Overrides ─────────────────────── */
 html.light-mode {
-  --bg-base: #e8e8ee;
-  --bg-surface: #efeff4;
-  --bg-elevated: #e0e0e8;
-  --bg-sidebar: #e4e4ea;
-  --text-primary: #1a1a1f;
-  --text-secondary: #5a5a6e;
-  --border: #c8c8d4;
+  --bg-base: #c8c8d2;
+  --bg-surface: #d4d4de;
+  --bg-elevated: #bebebc;
+  --bg-sidebar: #c2c2cc;
+  --text-primary: #12121a;
+  --text-secondary: #46465a;
+  --border: #a8a8b8;
 }
 
 /* ── Layout ───────────────────────────────────── */

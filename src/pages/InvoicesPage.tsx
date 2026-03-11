@@ -6,9 +6,11 @@ import AddInvoiceModal from "../components/ui/AddInvoiceModal";
 import ConfirmModal from "../components/ui/ConfirmModal";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../components/auth/AuthProvider";
+import { useCurrency } from "../hooks/useCurrency";
 
 export default function InvoicesPage() {
   const { user } = useAuth();
+  const { format } = useCurrency();
   const [invoices, setInvoices] = useState<ClientPayment[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -17,9 +19,9 @@ export default function InvoicesPage() {
   const [isDeleting, setIsDeleting] = useState(false);
 
   const [kpis, setKpis] = useState([
-    { label: "Total Invoiced", value: "$0" },
-    { label: "Outstanding", value: "$0" },
-    { label: "Paid to Date", value: "$0" },
+    { label: "Total Invoiced", value: format(0) },
+    { label: "Outstanding", value: format(0) },
+    { label: "Paid to Date", value: format(0) },
   ]);
 
   async function fetchInvoices() {
@@ -57,9 +59,9 @@ export default function InvoicesPage() {
         .reduce((sum, inv) => sum + inv.amount, 0);
 
       setKpis([
-        { label: "Total Invoiced", value: `$${total.toLocaleString()}` },
-        { label: "Outstanding", value: `$${outstanding.toLocaleString()}` },
-        { label: "Paid to Date", value: `$${paid.toLocaleString()}` },
+        { label: "Total Invoiced", value: format(total) },
+        { label: "Outstanding", value: format(outstanding) },
+        { label: "Paid to Date", value: format(paid) },
       ]);
     }
     setLoading(false);
@@ -86,11 +88,8 @@ export default function InvoicesPage() {
       .from("invoices")
       .delete()
       .eq("id", itemToDelete.id);
-    if (error) {
-      console.error("Error deleting invoice:", error);
-    } else {
-      fetchInvoices();
-    }
+    if (error) console.error("Error deleting invoice:", error);
+    else fetchInvoices();
     setIsDeleting(false);
     setItemToDelete(null);
   }

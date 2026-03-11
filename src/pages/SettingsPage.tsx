@@ -365,8 +365,7 @@ export default function SettingsPage() {
                   <select value={currency} onChange={(e) => setCurrency(e.target.value)}>
                     <option value="USD">USD ($)</option>
                     <option value="EUR">EUR (€)</option>
-                    <option value="GBP">GBP (£)</option>
-                    <option value="JPY">JPY (¥)</option>
+                    <option value="GEL">GEL (₾)</option>
                   </select>
                 </div>
 

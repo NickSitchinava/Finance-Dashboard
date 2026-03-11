@@ -9,42 +9,31 @@ import { useAuth } from "../components/auth/AuthProvider";
 import GitHubHeatmap from "../components/widgets/GitHubHeatmap";
 import GitHubActivityTable from "../components/tables/GitHubActivityTable";
 import AddGitHubActivityModal from "../components/ui/AddGitHubActivityModal";
+import { useCurrency } from "../hooks/useCurrency";
 
 const MONTHS = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec",
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 
 export default function OverviewPage() {
   const { user } = useAuth();
+  const { format, formatRate } = useCurrency();
   const [activeProjects, setActiveProjects] = useState<any[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
 
-  // Stats
   const [liveStats, setLiveStats] = useState([
-    { label: "Total Revenue", value: "$0" },
-    { label: "Avg Hourly Rate", value: "$0/h" },
+    { label: "Total Revenue", value: format(0) },
+    { label: "Avg Hourly Rate", value: formatRate(0) },
     { label: "Total Clients", value: "0" },
     { label: "Project Completion", value: "0%" },
   ]);
 
-  // Modals & States
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [projectToEdit, setProjectToEdit] = useState<any>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [monthlyRevenue, setMonthlyRevenue] = useState<any[]>([]);
 
-  // GitHub Activity states
   const [githubActivities, setGithubActivities] = useState<any[]>([]);
   const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
   const [activityToEdit, setActivityToEdit] = useState<any>(null);
@@ -82,7 +71,7 @@ export default function OverviewPage() {
           github_link: p.github_link,
           website_link: p.website_link,
           other_link: p.other_link,
-        })),
+        }))
       );
     }
   }
@@ -113,47 +102,34 @@ export default function OverviewPage() {
       if (!user) return;
       setLoadingProjects(true);
 
-      // 1. Fetch active projects
       await fetchProjects();
       setLoadingProjects(false);
 
-      // 2. Fetch stats
       const [{ data: allProj }, { data: allTrans }, { data: allClients }] =
         await Promise.all([
           supabase.from("projects").select("status, hours_logged"),
-          supabase
-            .from("transactions")
-            .select("amount, date, category")
-            .eq("type", "Income"),
+          supabase.from("transactions").select("amount, date, category").eq("type", "Income"),
           supabase.from("clients").select("id", { count: "exact" }),
         ]);
 
-      const totalRev =
-        allTrans?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
-      const totalHours =
-        allProj?.reduce((sum, p) => sum + Number(p.hours_logged), 0) || 0;
+      const totalRev = allTrans?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
+      const totalHours = allProj?.reduce((sum, p) => sum + Number(p.hours_logged), 0) || 0;
       const avgRate = totalHours > 0 ? Math.round(totalRev / totalHours) : 0;
-      const completedProj =
-        allProj?.filter((p) => p.status === "Completed").length || 0;
+      const completedProj = allProj?.filter((p) => p.status === "Completed").length || 0;
       const totalProjCount = allProj?.length || 0;
-      const compRate =
-        totalProjCount > 0
-          ? Math.round((completedProj / totalProjCount) * 100)
-          : 0;
+      const compRate = totalProjCount > 0 ? Math.round((completedProj / totalProjCount) * 100) : 0;
 
       setLiveStats([
-        { label: "Total Revenue", value: `$${totalRev.toLocaleString()}` },
-        { label: "Avg Hourly Rate", value: `$${avgRate}/h` },
+        { label: "Total Revenue", value: format(totalRev) },
+        { label: "Avg Hourly Rate", value: formatRate(avgRate) },
         { label: "Total Clients", value: (allClients?.length || 0).toString() },
         { label: "Project Completion", value: `${compRate}%` },
       ]);
 
-      // 3. Monthly Revenue
       if (allTrans) {
         const monthlyMap: Record<string, number> = {};
         allTrans.forEach((t) => {
-          const dateOb = new Date(t.date);
-          const monthStr = MONTHS[dateOb.getUTCMonth()];
+          const monthStr = MONTHS[new Date(t.date).getUTCMonth()];
           monthlyMap[monthStr] = (monthlyMap[monthStr] || 0) + Number(t.amount);
         });
 
@@ -168,7 +144,6 @@ export default function OverviewPage() {
         setMonthlyRevenue(last6Months);
       }
 
-      // 4. Fetch GitHub Activity
       await fetchGithubActivity();
     }
 
@@ -178,8 +153,7 @@ export default function OverviewPage() {
   async function handleDeleteConfirm() {
     if (!itemToDelete) return;
     setIsDeleting(true);
-    const table =
-      itemToDelete.type === "project" ? "projects" : "github_activity";
+    const table = itemToDelete.type === "project" ? "projects" : "github_activity";
     await supabase.from(table).delete().eq("id", itemToDelete.id);
     setIsDeleting(false);
     setItemToDelete(null);
@@ -209,14 +183,7 @@ export default function OverviewPage() {
 
   return (
     <div className="page">
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "flex-end",
-          marginBottom: 16,
-          gap: 12,
-        }}
-      >
+      <div className="page__toolbar">
         <button className="btn btn--outline" onClick={openAddActivity}>
           + New Activity
         </button>
@@ -250,16 +217,12 @@ export default function OverviewPage() {
 
       <div className="page__row page__row--full">
         {loadingProjects ? (
-          <div style={{ color: "var(--text-secondary)" }}>
-            Loading active projects...
-          </div>
+          <div className="page-loading">Loading active projects...</div>
         ) : (
           <ActiveProjectsTable
             data={activeProjects}
             onEdit={openEditModal}
-            onDelete={(p) =>
-              p.id && setItemToDelete({ id: p.id, type: "project" })
-            }
+            onDelete={(p) => p.id && setItemToDelete({ id: p.id, type: "project" })}
           />
         )}
       </div>
@@ -281,11 +244,7 @@ export default function OverviewPage() {
       <ConfirmModal
         isOpen={!!itemToDelete}
         onClose={() => setItemToDelete(null)}
-        title={
-          itemToDelete?.type === "project"
-            ? "Delete Project"
-            : "Delete Activity"
-        }
+        title={itemToDelete?.type === "project" ? "Delete Project" : "Delete Activity"}
         message="Are you sure you want to delete this? This action cannot be undone."
         confirmText="Delete"
         cancelText="Cancel"

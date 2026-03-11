@@ -13,17 +13,18 @@ export default function AppLayout({ toggleChat }: AppLayoutProps) {
 
   return (
     <div className="app-layout">
+      
+      <Sidebar
+        isOpen={isSidebarOpen}
+        closeSidebar={() => setIsSidebarOpen(false)}
+        onToggleChat={toggleChat}
+      />
       {isSidebarOpen && (
         <div
           className="app-layout__overlay"
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
-      <Sidebar
-        isOpen={isSidebarOpen}
-        closeSidebar={() => setIsSidebarOpen(false)}
-        onToggleChat={toggleChat}
-      />
       <div className="app-layout__main">
         <TopBar
           toggleSidebar={() => setIsSidebarOpen((prev) => !prev)}

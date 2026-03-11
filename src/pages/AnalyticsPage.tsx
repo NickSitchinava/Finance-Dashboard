@@ -5,6 +5,7 @@ import NewClientsBarChart from "../components/charts/NewClientsBarChart";
 import TopClientsTable from "../components/tables/TopClientsTable";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../components/auth/AuthProvider";
+import { useCurrency } from "../hooks/useCurrency";
 
 const MONTHS = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -13,12 +14,13 @@ const MONTHS = [
 
 export default function AnalyticsPage() {
   const { user } = useAuth();
+  const { format } = useCurrency();
   const [loading, setLoading] = useState(true);
 
   const [analyticsKPIs, setAnalyticsKPIs] = useState<any[]>([
-    { label: "YTD Revenue", value: "$0" },
+    { label: "YTD Revenue", value: format(0) },
     { label: "YTD Clients", value: "0" },
-    { label: "Avg Project Value", value: "$0" },
+    { label: "Avg Project Value", value: format(0) },
   ]);
   const [revenueAreaData, setRevenueAreaData] = useState<any[]>([]);
   const [newClientsPerMonth, setNewClientsPerMonth] = useState<any[]>([]);
@@ -50,8 +52,7 @@ export default function AnalyticsPage() {
         (t) => new Date(t.date) >= new Date(yearStart)
       );
       const ytdRevenue = ytdTransactions.reduce(
-        (sum, t) => sum + Number(t.amount),
-        0
+        (sum, t) => sum + Number(t.amount), 0
       );
       const ytdClientsCount = clients.filter(
         (c) => new Date(c.created_at) >= new Date(yearStart)
@@ -60,8 +61,7 @@ export default function AnalyticsPage() {
         (p) => p.status === "Completed"
       ).length;
       const totalRevenue = transactions.reduce(
-        (sum, t) => sum + Number(t.amount),
-        0
+        (sum, t) => sum + Number(t.amount), 0
       );
       const avgProjValue =
         completedProjects > 0
@@ -69,9 +69,9 @@ export default function AnalyticsPage() {
           : 0;
 
       setAnalyticsKPIs([
-        { label: "YTD Revenue", value: `$${ytdRevenue.toLocaleString()}` },
+        { label: "YTD Revenue", value: format(ytdRevenue) },
         { label: "YTD Clients", value: ytdClientsCount.toString() },
-        { label: "Avg Project Value", value: `$${avgProjValue.toLocaleString()}` },
+        { label: "Avg Project Value", value: format(avgProjValue) },
       ]);
 
       const revMap: Record<string, number> = {};
@@ -126,9 +126,7 @@ export default function AnalyticsPage() {
       transactions.forEach((t) => {
         if (t.client_id && clientAgg[t.client_id]) {
           clientAgg[t.client_id].totalRevenue += Number(t.amount);
-          if (
-            new Date(t.date) > new Date(clientAgg[t.client_id].lastActive)
-          ) {
+          if (new Date(t.date) > new Date(clientAgg[t.client_id].lastActive)) {
             clientAgg[t.client_id].lastActive = t.date;
           }
         }
@@ -140,7 +138,7 @@ export default function AnalyticsPage() {
         .map((c) => ({
           client: c.client,
           projectsCompleted: c.projectsCompleted,
-          totalRevenue: `$${c.totalRevenue.toLocaleString()}`,
+          totalRevenue: format(c.totalRevenue),
           lastActive: new Date(c.lastActive).toLocaleDateString([], {
             month: "short",
             day: "2-digit",

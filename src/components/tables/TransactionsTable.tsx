@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useCurrency } from "../../hooks/useCurrency";
 import "./TransactionsTable.css";
 
 export interface Transaction {
@@ -36,11 +37,8 @@ const DeleteIcon = () => (
   </svg>
 );
 
-export default function TransactionsTable({
-  data,
-  onEdit,
-  onDelete,
-}: TransactionsTableProps) {
+export default function TransactionsTable({ data, onEdit, onDelete }: TransactionsTableProps) {
+  const { symbol } = useCurrency();
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(0);
@@ -71,11 +69,8 @@ export default function TransactionsTable({
   }
 
   function renderSortIcon(key: SortKey) {
-    if (sortKey !== key)
-      return <span className="sort-icon sort-icon--inactive">↕</span>;
-    return (
-      <span className="sort-icon">{sortDir === "asc" ? "↑" : "↓"}</span>
-    );
+    if (sortKey !== key) return <span className="sort-icon sort-icon--inactive">↕</span>;
+    return <span className="sort-icon">{sortDir === "asc" ? "↑" : "↓"}</span>;
   }
 
   return (
@@ -85,30 +80,18 @@ export default function TransactionsTable({
         <table className="data-table">
           <thead>
             <tr>
-              <th className="sortable-th" onClick={() => handleSort("date")}>
-                Date {renderSortIcon("date")}
-              </th>
-              <th className="sortable-th" onClick={() => handleSort("description")}>
-                Description {renderSortIcon("description")}
-              </th>
-              <th className="sortable-th" onClick={() => handleSort("category")}>
-                Category {renderSortIcon("category")}
-              </th>
-              <th className="sortable-th" onClick={() => handleSort("amount")}>
-                Amount {renderSortIcon("amount")}
-              </th>
-              <th className="sortable-th" onClick={() => handleSort("type")}>
-                Type {renderSortIcon("type")}
-              </th>
+              <th className="sortable-th" onClick={() => handleSort("date")}>Date {renderSortIcon("date")}</th>
+              <th className="sortable-th" onClick={() => handleSort("description")}>Description {renderSortIcon("description")}</th>
+              <th className="sortable-th" onClick={() => handleSort("category")}>Category {renderSortIcon("category")}</th>
+              <th className="sortable-th" onClick={() => handleSort("amount")}>Amount {renderSortIcon("amount")}</th>
+              <th className="sortable-th" onClick={() => handleSort("type")}>Type {renderSortIcon("type")}</th>
               <th className="col-actions">Actions</th>
             </tr>
           </thead>
           <tbody>
             {pageData.length === 0 ? (
               <tr>
-                <td colSpan={6} className="td--empty">
-                  No transactions found.
-                </td>
+                <td colSpan={6} className="td--empty">No transactions found.</td>
               </tr>
             ) : (
               pageData.map((t) => (
@@ -116,40 +99,26 @@ export default function TransactionsTable({
                   <td className="td--secondary">{t.date}</td>
                   <td>
                     <span className="td--bold">{t.description}</span>
-                    {t.client && (
-                      <div className="td--client">Client: {t.client}</div>
-                    )}
+                    {t.client && <div className="td--client">Client: {t.client}</div>}
                   </td>
                   <td className="td--secondary">{t.category}</td>
                   <td className="td--amount">
-                    ${Number(t.amount).toLocaleString(undefined, {
+                    {symbol}{Number(t.amount).toLocaleString(undefined, {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
                     })}
                   </td>
                   <td>
-                    <span
-                      className={`badge ${
-                        t.type === "Income" ? "badge--paid" : "badge--overdue"
-                      }`}
-                    >
+                    <span className={`badge ${t.type === "Income" ? "badge--paid" : "badge--overdue"}`}>
                       {t.type}
                     </span>
                   </td>
                   <td className="col-actions">
                     <div className="table-actions">
-                      <button
-                        className="action-btn action-btn--edit"
-                        onClick={() => onEdit?.(t)}
-                        title="Edit"
-                      >
+                      <button className="action-btn action-btn--edit" onClick={() => onEdit?.(t)} title="Edit">
                         <EditIcon />
                       </button>
-                      <button
-                        className="action-btn action-btn--delete"
-                        onClick={() => onDelete?.(t)}
-                        title="Delete"
-                      >
+                      <button className="action-btn action-btn--delete" onClick={() => onDelete?.(t)} title="Delete">
                         <DeleteIcon />
                       </button>
                     </div>
@@ -163,23 +132,9 @@ export default function TransactionsTable({
 
       {totalPages > 1 && (
         <div className="pagination">
-          <button
-            className="pagination__btn"
-            disabled={page === 0}
-            onClick={() => setPage((p) => p - 1)}
-          >
-            ←
-          </button>
-          <span className="pagination__info">
-            Page {page + 1} of {totalPages}
-          </span>
-          <button
-            className="pagination__btn"
-            disabled={page >= totalPages - 1}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            →
-          </button>
+          <button className="pagination__btn" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>←</button>
+          <span className="pagination__info">Page {page + 1} of {totalPages}</span>
+          <button className="pagination__btn" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}>→</button>
         </div>
       )}
     </div>

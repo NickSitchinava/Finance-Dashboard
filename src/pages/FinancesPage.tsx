@@ -7,12 +7,14 @@ import AddTransactionModal from "../components/ui/AddTransactionModal";
 import ConfirmModal from "../components/ui/ConfirmModal";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../components/auth/AuthProvider";
+import { useCurrency } from "../hooks/useCurrency";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const COLORS = ["#8A8A9A", "#E87B3A", "#4A4A56", "#D06A2E", "#3296FA", "#34C759"];
 
 export default function FinancesPage() {
   const { user } = useAuth();
+  const { format } = useCurrency();
   const [transactions, setTransactions] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [transactionToEdit, setTransactionToEdit] = useState<any>(null);
@@ -49,8 +51,7 @@ export default function FinancesPage() {
       const incCatMap: Record<string, number> = {};
 
       formatted.forEach((t) => {
-        const dObj = new Date(t.date);
-        const mStr = MONTHS[dObj.getUTCMonth()];
+        const mStr = MONTHS[new Date(t.date).getUTCMonth()];
         if (!monMap[mStr]) monMap[mStr] = { income: 0, expenses: 0 };
         if (t.type === "Income") {
           monMap[mStr].income += t.amount;
@@ -123,12 +124,10 @@ export default function FinancesPage() {
     .reduce((sum, t) => sum + t.amount, 0);
   const netProfit = totalIncome - totalExpenses;
 
-  const formatCurrency = (val: number) => `$${val.toLocaleString()}`;
-
   const liveStats = [
-    { label: "Total Revenue", value: formatCurrency(totalIncome), trend: "up" as const, change: 0 },
-    { label: "Total Expenses", value: formatCurrency(totalExpenses), trend: "down" as const, change: 0 },
-    { label: "Net Profit", value: formatCurrency(netProfit) },
+    { label: "Total Revenue", value: format(totalIncome), trend: "up" as const, change: 0 },
+    { label: "Total Expenses", value: format(totalExpenses), trend: "down" as const, change: 0 },
+    { label: "Net Profit", value: format(netProfit) },
   ];
 
   return (

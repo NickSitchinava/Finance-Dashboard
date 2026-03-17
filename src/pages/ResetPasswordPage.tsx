@@ -33,20 +33,23 @@ export default function ResetPasswordPage() {
   const [checking, setChecking] = useState(true);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    // Wait a tick for AuthProvider to set the session from PASSWORD_RECOVERY event
-    const timer = setTimeout(async () => {
-      const { data } = await supabase.auth.getSession();
-      if (data.session) {
-        setValidSession(true);
-      } else {
-        setErrorMsg("Invalid or expired reset link. Please request a new one.");
-      }
-      setChecking(false);
-    }, 500);
+ useEffect(() => {
+  console.log("HASH:", window.location.hash);
+  console.log("SEARCH:", window.location.search);
+  console.log("HREF:", window.location.href);
 
-    return () => clearTimeout(timer);
-  }, []);
+  const timer = setTimeout(async () => {
+    const { data } = await supabase.auth.getSession();
+    console.log("SESSION:", data.session);
+    setValidSession(!!data.session);
+    if (!data.session) {
+      setErrorMsg("Invalid or expired reset link. Please request a new one.");
+    }
+    setChecking(false);
+  }, 500);
+
+  return () => clearTimeout(timer);
+}, []);
 
   async function handleReset(e: React.FormEvent) {
     e.preventDefault();

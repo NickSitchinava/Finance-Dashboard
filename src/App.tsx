@@ -12,20 +12,21 @@ import GoalsPage from "./pages/GoalsPage";
 import InvoicesPage from "./pages/InvoicesPage";
 import SettingsPage from "./pages/SettingsPage";
 import LoginPage from "./pages/LoginPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 
 export default function App() {
   const [isChatOpen, setIsChatOpen] = useState(false);
-
-  const toggleChat = () => setIsChatOpen(!isChatOpen);
+  const toggleChat = () => setIsChatOpen((prev) => !prev);
 
   return (
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          {/* Public Route */}
+          {/* Public routes */}
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
 
-          {/* Protected Routes */}
+          {/* Protected routes */}
           <Route element={<AuthGuard />}>
             <Route element={<AppLayout toggleChat={toggleChat} />}>
               <Route path="/" element={<OverviewPage />} />

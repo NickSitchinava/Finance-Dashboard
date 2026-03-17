@@ -30,28 +30,19 @@ export default function GoalsPage() {
     setLoading(true);
 
     const [{ data: goalsData }, { data: milestonesData }] = await Promise.all([
-      supabase
-        .from("goals")
-        .select("*")
-        .order("target_date", { ascending: true }),
-      supabase
-        .from("milestones")
-        .select("*")
-        .order("target_date", { ascending: true }),
+      supabase.from("goals").select("*").order("target_date", { ascending: true }),
+      supabase.from("milestones").select("*").order("target_date", { ascending: true }),
     ]);
 
     if (goalsData) {
-      const formatted = goalsData.map((d) => ({
+      setGoals(goalsData.map((d) => ({
         ...d,
         targetDate: d.target_date,
         percentComplete: d.percent_complete,
-      }));
-      setGoals(formatted);
+      })));
     }
 
-    if (milestonesData) {
-      setMilestones(milestonesData);
-    }
+    if (milestonesData) setMilestones(milestonesData);
 
     setLoading(false);
   }
@@ -90,47 +81,29 @@ export default function GoalsPage() {
     fetchGoalsAndMilestones();
   }, [user]);
 
-  // Recalculate stats based on live data
   const liveStats = [
     { label: "Total Goals", value: goals.length.toString() },
-    {
-      label: "Completed",
-      value: goals.filter((g) => g.percentComplete === 100).length.toString(),
-    },
-    {
-      label: "In Progress",
-      value: goals.filter((g) => g.percentComplete < 100).length.toString(),
-    },
+    { label: "Completed", value: goals.filter((g) => g.percentComplete === 100).length.toString() },
+    { label: "In Progress", value: goals.filter((g) => g.percentComplete < 100).length.toString() },
   ];
 
   return (
     <div className="page">
-      {/* Header & Add Button */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "flex-end",
-          marginBottom: -8,
-          gap: 12,
-        }}
-      >
+      <div className="page__toolbar">
         <button className="btn btn--outline" onClick={openAddMilestone}>
-          <span style={{ fontSize: "1.2rem", marginRight: 4 }}>+</span> New
-          Milestone
+          + New Milestone
         </button>
         <button className="btn btn--primary" onClick={openAddGoal}>
-          <span style={{ fontSize: "1.2rem", marginRight: 4 }}>+</span> New Goal
+          + New Goal
         </button>
       </div>
 
-      {/* KPI Cards */}
       <div className="page__row page__row--3">
         {liveStats.map((stat) => (
           <StatCard key={stat.label} {...stat} />
         ))}
       </div>
 
-      {/* Milestone Timeline */}
       <div className="page__row page__row--full">
         <MilestoneTimeline
           milestones={milestones.map((m) => ({
@@ -147,23 +120,19 @@ export default function GoalsPage() {
         />
       </div>
 
-      {/* Goal Cards Grid - 3 columns */}
       <div className="page__row page__row--3">
         {loading ? (
-          <div style={{ color: "var(--text-secondary)" }}>Loading goals...</div>
+          <div className="page-loading">Loading goals...</div>
         ) : goals.length === 0 ? (
-          <div style={{ color: "var(--text-secondary)" }}>
-            No goals yet. Add one above!
-          </div>
+          <div className="page-loading">No goals yet. Add one above!</div>
         ) : (
           goals.map((goal) => (
             <GoalCard
               key={goal.id}
               goal={goal}
               onEdit={openEditGoal}
-              onDelete={(g) =>
-                g.id && setItemToDelete({ id: g.id, type: "goal" })
-              }
+              onDelete={(g) => g.id && setItemToDelete({ id: g.id, type: "goal" })}
+              onRefresh={fetchGoalsAndMilestones}
             />
           ))
         )}
@@ -185,9 +154,7 @@ export default function GoalsPage() {
       <ConfirmModal
         isOpen={!!itemToDelete}
         onClose={() => setItemToDelete(null)}
-        title={
-          itemToDelete?.type === "goal" ? "Delete Goal" : "Delete Milestone"
-        }
+        title={itemToDelete?.type === "goal" ? "Delete Goal" : "Delete Milestone"}
         message="Are you sure you want to delete this? This action cannot be undone."
         confirmText="Delete"
         cancelText="Cancel"

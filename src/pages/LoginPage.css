@@ -130,3 +130,52 @@
   border-color: rgba(52, 199, 89, 0.3);
   color: #34c759;
 }
+
+/* Forgot password label row */
+.login-password-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.login-password-label label {
+  margin-bottom: 0;
+}
+
+.text-btn--small {
+  font-size: 0.8rem;
+  opacity: 0.8;
+}
+
+.text-btn--small:hover {
+  opacity: 1;
+}
+
+/* Email sent state */
+.login-sent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 0;
+  text-align: center;
+}
+
+.login-sent__icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: rgba(232, 123, 58, 0.08);
+  border: 1px solid rgba(232, 123, 58, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-sent__text {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  max-width: 300px;
+}

@@ -38,7 +38,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      // If this is a password recovery event, redirect to reset page
+      // and do NOT set the session — prevents AuthGuard from redirecting to dashboard
+      if (event === 'PASSWORD_RECOVERY') {
+        window.location.href = '/reset-password';
+        return;
+      }
+
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);

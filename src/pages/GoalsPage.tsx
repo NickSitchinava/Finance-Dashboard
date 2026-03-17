@@ -43,7 +43,6 @@ export default function GoalsPage() {
     }
 
     if (milestonesData) setMilestones(milestonesData);
-
     setLoading(false);
   }
 
@@ -57,35 +56,29 @@ export default function GoalsPage() {
     fetchGoalsAndMilestones();
   }
 
-  function openEditGoal(g: any) {
-    setGoalToEdit(g);
-    setIsGoalModalOpen(true);
-  }
+  function openEditGoal(g: any) { setGoalToEdit(g); setIsGoalModalOpen(true); }
+  function openAddGoal() { setGoalToEdit(null); setIsGoalModalOpen(true); }
+  function openEditMilestone(m: any) { setMilestoneToEdit(m); setIsMilestoneModalOpen(true); }
+  function openAddMilestone() { setMilestoneToEdit(null); setIsMilestoneModalOpen(true); }
 
-  function openAddGoal() {
-    setGoalToEdit(null);
-    setIsGoalModalOpen(true);
-  }
+  useEffect(() => { fetchGoalsAndMilestones(); }, [user]);
 
-  function openEditMilestone(m: any) {
-    setMilestoneToEdit(m);
-    setIsMilestoneModalOpen(true);
-  }
-
-  function openAddMilestone() {
-    setMilestoneToEdit(null);
-    setIsMilestoneModalOpen(true);
-  }
-
-  useEffect(() => {
-    fetchGoalsAndMilestones();
-  }, [user]);
+  const activeGoals = goals.filter((g) => g.percentComplete < 100);
+  const completedGoals = goals.filter((g) => g.percentComplete === 100);
 
   const liveStats = [
     { label: "Total Goals", value: goals.length.toString() },
-    { label: "Completed", value: goals.filter((g) => g.percentComplete === 100).length.toString() },
-    { label: "In Progress", value: goals.filter((g) => g.percentComplete < 100).length.toString() },
+    { label: "Completed", value: completedGoals.length.toString() },
+    { label: "In Progress", value: activeGoals.length.toString() },
   ];
+
+  const goalCardProps = (goal: any) => ({
+    key: goal.id,
+    goal,
+    onEdit: openEditGoal,
+    onDelete: (g: any) => g.id && setItemToDelete({ id: g.id, type: "goal" as const }),
+    onRefresh: fetchGoalsAndMilestones,
+  });
 
   return (
     <div className="page">
@@ -109,10 +102,7 @@ export default function GoalsPage() {
           milestones={milestones.map((m) => ({
             ...m,
             date: m.target_date
-              ? new Date(m.target_date).toLocaleDateString([], {
-                  month: "short",
-                  year: "numeric",
-                })
+              ? new Date(m.target_date).toLocaleDateString([], { month: "short", year: "numeric" })
               : "No date",
           }))}
           onEdit={openEditMilestone}
@@ -120,23 +110,44 @@ export default function GoalsPage() {
         />
       </div>
 
-      <div className="page__row page__row--3">
-        {loading ? (
-          <div className="page-loading">Loading goals...</div>
-        ) : goals.length === 0 ? (
-          <div className="page-loading">No goals yet. Add one above!</div>
-        ) : (
-          goals.map((goal) => (
-            <GoalCard
-              key={goal.id}
-              goal={goal}
-              onEdit={openEditGoal}
-              onDelete={(g) => g.id && setItemToDelete({ id: g.id, type: "goal" })}
-              onRefresh={fetchGoalsAndMilestones}
-            />
-          ))
-        )}
-      </div>
+      {/* Active Goals */}
+      {!loading && activeGoals.length > 0 && (
+        <>
+          <div className="goals-section-header">
+            <span className="goals-section-header__title">In Progress</span>
+            <span className="goals-section-header__count">{activeGoals.length}</span>
+          </div>
+          <div className="page__row page__row--3">
+            {activeGoals.map((goal) => (
+              <GoalCard {...goalCardProps(goal)} />
+            ))}
+          </div>
+        </>
+      )}
+
+      {loading && <div className="page-loading">Loading goals...</div>}
+
+      {!loading && goals.length === 0 && (
+        <div className="page-loading">No goals yet. Add one above!</div>
+      )}
+
+      {/* Completed Goals */}
+      {!loading && completedGoals.length > 0 && (
+        <>
+          <div className="goals-section-divider" />
+          <div className="goals-section-header goals-section-header--completed">
+            <span className="goals-section-header__title">Completed</span>
+            <span className="goals-section-header__count goals-section-header__count--completed">
+              {completedGoals.length}
+            </span>
+          </div>
+          <div className="page__row page__row--3">
+            {completedGoals.map((goal) => (
+              <GoalCard {...goalCardProps(goal)} />
+            ))}
+          </div>
+        </>
+      )}
 
       <AddGoalModal
         isOpen={isGoalModalOpen}
@@ -150,7 +161,6 @@ export default function GoalsPage() {
         onMilestoneAdded={fetchGoalsAndMilestones}
         milestoneToEdit={milestoneToEdit}
       />
-
       <ConfirmModal
         isOpen={!!itemToDelete}
         onClose={() => setItemToDelete(null)}

@@ -22,7 +22,7 @@ const LockIcon = () => (
 const GearIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="12" r="3" />
-    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l-.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
   </svg>
 );
 
@@ -62,6 +62,7 @@ export default function SettingsPage() {
   // Preferences
   const [currency, setCurrency] = useState("USD");
   const [darkMode, setDarkMode] = useState(true);
+  const [showGitHub, setShowGitHub] = useState(true);
   const [notifications, setNotifications] = useState({
     account: true,
     projects: true,
@@ -94,6 +95,7 @@ export default function SettingsPage() {
       const isDark = prefs.darkMode !== undefined ? prefs.darkMode : true;
       setCurrency(prefs.currency || "USD");
       setDarkMode(isDark);
+      setShowGitHub(prefs.showGitHub !== undefined ? prefs.showGitHub : true);
       setNotifications(prefs.notifications || { account: true, projects: true, marketing: false });
       applyTheme(isDark);
     }
@@ -182,7 +184,7 @@ export default function SettingsPage() {
   }
 
   function handleSavePreferences() {
-    const prefs = { currency, darkMode, notifications };
+    const prefs = { currency, darkMode, showGitHub, notifications };
     localStorage.setItem("user_preferences", JSON.stringify(prefs));
     applyTheme(darkMode);
     showMessage("Preferences saved!", "success");
@@ -379,6 +381,21 @@ export default function SettingsPage() {
                       type="checkbox"
                       checked={darkMode}
                       onChange={(e) => setDarkMode(e.target.checked)}
+                    />
+                    <span className="slider" />
+                  </label>
+                </div>
+
+                <div className="toggle-group">
+                  <div className="toggle-group__info">
+                    <span className="toggle-group__label">GitHub Integration</span>
+                    <span className="toggle-group__desc">Show GitHub heatmap and activity sections across the dashboard.</span>
+                  </div>
+                  <label className="switch">
+                    <input
+                      type="checkbox"
+                      checked={showGitHub}
+                      onChange={(e) => setShowGitHub(e.target.checked)}
                     />
                     <span className="slider" />
                   </label>

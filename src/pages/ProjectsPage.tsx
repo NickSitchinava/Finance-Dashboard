@@ -11,9 +11,12 @@ import LogProgressModal from "../components/ui/LogProgressModal";
 import ConfirmModal from "../components/ui/ConfirmModal";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../components/auth/AuthProvider";
+import { useGitHub } from "../hooks/useGitHub";
 
 export default function ProjectsPage() {
   const { user } = useAuth();
+  const showGitHub = useGitHub();
+
   const [projects, setProjects] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [projectToEdit, setProjectToEdit] = useState<any>(null);
@@ -49,7 +52,7 @@ export default function ProjectsPage() {
       .order("created_at", { ascending: false });
 
     if (data) {
-      const formatted = data.map((d) => ({
+      setProjects(data.map((d) => ({
         ...d,
         client: d.clients?.name || "Unknown",
         techStack: d.tech_stack ?? [],
@@ -59,8 +62,7 @@ export default function ProjectsPage() {
         github_link: d.github_link,
         website_link: d.website_link,
         other_link: d.other_link,
-      }));
-      setProjects(formatted);
+      })));
     }
     setLoading(false);
   }
@@ -97,39 +99,16 @@ export default function ProjectsPage() {
     else fetchGithubActivity();
   }
 
-  function openEditModal(p: any) {
-    setProjectToEdit(p);
-    setIsModalOpen(true);
-  }
-
-  function openAddModal() {
-    setProjectToEdit(null);
-    setIsModalOpen(true);
-  }
-
-  function openEditActivity(a: any) {
-    setActivityToEdit(a);
-    setIsActivityModalOpen(true);
-  }
-
-  function openAddActivity() {
-    setActivityToEdit(null);
-    setIsActivityModalOpen(true);
-  }
-
-  function openLogHours(p: any) {
-    setHoursProject(p);
-    setIsHoursModalOpen(true);
-  }
-
-  function openLogProgress(p: any) {
-    setProgressProject(p);
-    setIsProgressModalOpen(true);
-  }
+  function openEditModal(p: any) { setProjectToEdit(p); setIsModalOpen(true); }
+  function openAddModal() { setProjectToEdit(null); setIsModalOpen(true); }
+  function openEditActivity(a: any) { setActivityToEdit(a); setIsActivityModalOpen(true); }
+  function openAddActivity() { setActivityToEdit(null); setIsActivityModalOpen(true); }
+  function openLogHours(p: any) { setHoursProject(p); setIsHoursModalOpen(true); }
+  function openLogProgress(p: any) { setProgressProject(p); setIsProgressModalOpen(true); }
 
   useEffect(() => {
     fetchProjects();
-    fetchGithubActivity();
+    if (showGitHub) fetchGithubActivity();
   }, [user]);
 
   const totalHours = projects.reduce((sum, p) => sum + p.hoursLogged, 0);
@@ -149,9 +128,11 @@ export default function ProjectsPage() {
   return (
     <div className="page">
       <div className="page__toolbar">
-        <button className="btn btn--outline" onClick={openAddActivity}>
-          + New Activity
-        </button>
+        {showGitHub && (
+          <button className="btn btn--outline" onClick={openAddActivity}>
+            + New Activity
+          </button>
+        )}
         <button className="btn btn--primary" onClick={openAddModal}>
           + New Project
         </button>
@@ -163,22 +144,30 @@ export default function ProjectsPage() {
         ))}
       </div>
 
-      <div className="page__row page__row--2-1">
-        <HoursBarChart data={liveHoursPerProject} />
-        <GitHubHeatmap
-          commits={githubStats.commits}
-          totalCommits={githubStats.total}
-          streak={githubStats.streak}
-        />
-      </div>
+      {showGitHub ? (
+        <div className="page__row page__row--2-1">
+          <HoursBarChart data={liveHoursPerProject} />
+          <GitHubHeatmap
+            commits={githubStats.commits}
+            totalCommits={githubStats.total}
+            streak={githubStats.streak}
+          />
+        </div>
+      ) : (
+        <div className="page__row page__row--full">
+          <HoursBarChart data={liveHoursPerProject} />
+        </div>
+      )}
 
-      <div className="page__row page__row--full">
-        <GitHubActivityTable
-          activities={githubActivities}
-          onEdit={openEditActivity}
-          onDelete={(a) => setItemToDelete({ id: a.id, type: "github" })}
-        />
-      </div>
+      {showGitHub && (
+        <div className="page__row page__row--full">
+          <GitHubActivityTable
+            activities={githubActivities}
+            onEdit={openEditActivity}
+            onDelete={(a) => setItemToDelete({ id: a.id, type: "github" })}
+          />
+        </div>
+      )}
 
       <div className="page__row page__row--full">
         {loading ? (
@@ -201,12 +190,14 @@ export default function ProjectsPage() {
         projectToEdit={projectToEdit}
       />
 
-      <AddGitHubActivityModal
-        isOpen={isActivityModalOpen}
-        onClose={() => setIsActivityModalOpen(false)}
-        onActivityAdded={fetchGithubActivity}
-        activityToEdit={activityToEdit}
-      />
+      {showGitHub && (
+        <AddGitHubActivityModal
+          isOpen={isActivityModalOpen}
+          onClose={() => setIsActivityModalOpen(false)}
+          onActivityAdded={fetchGithubActivity}
+          activityToEdit={activityToEdit}
+        />
+      )}
 
       <LogHoursModal
         isOpen={isHoursModalOpen}

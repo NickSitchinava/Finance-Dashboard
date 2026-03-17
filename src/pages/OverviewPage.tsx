@@ -10,6 +10,7 @@ import GitHubHeatmap from "../components/widgets/GitHubHeatmap";
 import GitHubActivityTable from "../components/tables/GitHubActivityTable";
 import AddGitHubActivityModal from "../components/ui/AddGitHubActivityModal";
 import { useCurrency } from "../hooks/useCurrency";
+import { useGitHub } from "../hooks/useGitHub";
 
 const MONTHS = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -19,6 +20,8 @@ const MONTHS = [
 export default function OverviewPage() {
   const { user } = useAuth();
   const { format, formatRate } = useCurrency();
+  const showGitHub = useGitHub();
+
   const [activeProjects, setActiveProjects] = useState<any[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
 
@@ -144,7 +147,7 @@ export default function OverviewPage() {
         setMonthlyRevenue(last6Months);
       }
 
-      await fetchGithubActivity();
+      if (showGitHub) await fetchGithubActivity();
     }
 
     fetchDashboardData();
@@ -161,32 +164,19 @@ export default function OverviewPage() {
     else fetchGithubActivity();
   }
 
-  function openEditModal(p: any) {
-    setProjectToEdit(p);
-    setIsModalOpen(true);
-  }
-
-  function openAddModal() {
-    setProjectToEdit(null);
-    setIsModalOpen(true);
-  }
-
-  function openEditActivity(a: any) {
-    setActivityToEdit(a);
-    setIsActivityModalOpen(true);
-  }
-
-  function openAddActivity() {
-    setActivityToEdit(null);
-    setIsActivityModalOpen(true);
-  }
+  function openEditModal(p: any) { setProjectToEdit(p); setIsModalOpen(true); }
+  function openAddModal() { setProjectToEdit(null); setIsModalOpen(true); }
+  function openEditActivity(a: any) { setActivityToEdit(a); setIsActivityModalOpen(true); }
+  function openAddActivity() { setActivityToEdit(null); setIsActivityModalOpen(true); }
 
   return (
     <div className="page">
       <div className="page__toolbar">
-        <button className="btn btn--outline" onClick={openAddActivity}>
-          + New Activity
-        </button>
+        {showGitHub && (
+          <button className="btn btn--outline" onClick={openAddActivity}>
+            + New Activity
+          </button>
+        )}
         <button className="btn btn--primary" onClick={openAddModal}>
           + New Project
         </button>
@@ -198,22 +188,30 @@ export default function OverviewPage() {
         ))}
       </div>
 
-      <div className="page__row page__row--2-1">
-        <RevenueLineChart data={monthlyRevenue} />
-        <GitHubHeatmap
-          commits={githubStats.commits}
-          totalCommits={githubStats.total}
-          streak={githubStats.streak}
-        />
-      </div>
+      {showGitHub ? (
+        <div className="page__row page__row--2-1">
+          <RevenueLineChart data={monthlyRevenue} />
+          <GitHubHeatmap
+            commits={githubStats.commits}
+            totalCommits={githubStats.total}
+            streak={githubStats.streak}
+          />
+        </div>
+      ) : (
+        <div className="page__row page__row--full">
+          <RevenueLineChart data={monthlyRevenue} />
+        </div>
+      )}
 
-      <div className="page__row page__row--full">
-        <GitHubActivityTable
-          activities={githubActivities}
-          onEdit={openEditActivity}
-          onDelete={(a) => setItemToDelete({ id: a.id, type: "github" })}
-        />
-      </div>
+      {showGitHub && (
+        <div className="page__row page__row--full">
+          <GitHubActivityTable
+            activities={githubActivities}
+            onEdit={openEditActivity}
+            onDelete={(a) => setItemToDelete({ id: a.id, type: "github" })}
+          />
+        </div>
+      )}
 
       <div className="page__row page__row--full">
         {loadingProjects ? (
@@ -234,12 +232,14 @@ export default function OverviewPage() {
         projectToEdit={projectToEdit}
       />
 
-      <AddGitHubActivityModal
-        isOpen={isActivityModalOpen}
-        onClose={() => setIsActivityModalOpen(false)}
-        onActivityAdded={fetchGithubActivity}
-        activityToEdit={activityToEdit}
-      />
+      {showGitHub && (
+        <AddGitHubActivityModal
+          isOpen={isActivityModalOpen}
+          onClose={() => setIsActivityModalOpen(false)}
+          onActivityAdded={fetchGithubActivity}
+          activityToEdit={activityToEdit}
+        />
+      )}
 
       <ConfirmModal
         isOpen={!!itemToDelete}

@@ -1,13 +1,9 @@
 import { useState, useEffect } from "react";
 import Modal from "./Modal";
 import ConfirmModal from "./ConfirmModal";
+import ClientSelect from "./ClientSelect";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../auth/AuthProvider";
-
-interface Client {
-  id: string;
-  name: string;
-}
 
 interface AddProjectModalProps {
   isOpen: boolean;
@@ -15,8 +11,6 @@ interface AddProjectModalProps {
   onProjectAdded: () => void;
   projectToEdit?: any | null;
 }
-
-const NEW_CLIENT_VALUE = "__new__";
 
 export default function AddProjectModal({
   isOpen,
@@ -27,12 +21,9 @@ export default function AddProjectModal({
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
-  const [clients, setClients] = useState<Client[]>([]);
 
   const [name, setName] = useState("");
   const [clientId, setClientId] = useState("");
-  const [newClientName, setNewClientName] = useState("");
-  const [isAddingClient, setIsAddingClient] = useState(false);
   const [techStackInput, setTechStackInput] = useState("");
   const [startDate, setStartDate] = useState("");
   const [deadline, setDeadline] = useState("");
@@ -40,27 +31,13 @@ export default function AddProjectModal({
   const [githubLink, setGithubLink] = useState("");
   const [websiteLink, setWebsiteLink] = useState("");
   const [otherLink, setOtherLink] = useState("");
-
   const [showConfirm, setShowConfirm] = useState(false);
 
   useEffect(() => {
-    async function fetchClients() {
-      if (!user) return;
-      const { data } = await supabase
-        .from("clients")
-        .select("id, name")
-        .order("name");
-      if (data) {
-        setClients(data);
-        if (data.length > 0 && !projectToEdit) setClientId(data[0].id);
-      }
-    }
-    fetchClients();
-  }, [user, projectToEdit]);
-
-  useEffect(() => {
-    if (projectToEdit && isOpen) {
+    if (!isOpen) return;
+    if (projectToEdit) {
       setName(projectToEdit.name || "");
+      setClientId(projectToEdit.client_id || "");
       setTechStackInput(projectToEdit.techStack?.join(", ") || "");
       setStartDate(projectToEdit.startDate || "");
       setDeadline(projectToEdit.deadline || "");
@@ -68,15 +45,9 @@ export default function AddProjectModal({
       setGithubLink(projectToEdit.github_link || "");
       setWebsiteLink(projectToEdit.website_link || "");
       setOtherLink(projectToEdit.other_link || "");
-      if (projectToEdit.client_id) {
-        setClientId(projectToEdit.client_id);
-      } else {
-        const foundClient = clients.find((c) => c.name === projectToEdit.client);
-        if (foundClient) setClientId(foundClient.id);
-      }
-      setErrorMsg("");
-    } else if (isOpen) {
+    } else {
       setName("");
+      setClientId("");
       setTechStackInput("");
       setStartDate("");
       setDeadline("");
@@ -84,45 +55,22 @@ export default function AddProjectModal({
       setGithubLink("");
       setWebsiteLink("");
       setOtherLink("");
-      setNewClientName("");
-      setIsAddingClient(false);
-      if (clients.length > 0) setClientId(clients[0].id);
-      setErrorMsg("");
     }
+    setErrorMsg("");
     setShowConfirm(false);
-  }, [projectToEdit, isOpen, clients]);
-
-  async function handleCreateClient() {
-    if (!newClientName.trim() || !user) return;
-    setLoading(true);
-    const { data, error } = await supabase
-      .from("clients")
-      .insert([{ name: newClientName.trim(), user_id: user.id }])
-      .select()
-      .single();
-    setLoading(false);
-    if (data && !error) {
-      setClients((prev) => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
-      setClientId(data.id);
-      setNewClientName("");
-      setIsAddingClient(false);
-    } else {
-      setErrorMsg(error?.message || "Failed to create client.");
-    }
-  }
+  }, [isOpen, projectToEdit]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!user) return;
     if (!clientId) {
-      setErrorMsg("Please select or create a client first.");
+      setErrorMsg("Please select or create a client.");
       return;
     }
     if (projectToEdit) {
       setShowConfirm(true);
-      return;
+    } else {
+      await performSave();
     }
-    await performSave();
   }
 
   async function performSave() {
@@ -153,56 +101,35 @@ export default function AddProjectModal({
           .eq("id", projectToEdit.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("projects").insert([
-          {
-            user_id: user.id,
-            name,
-            client_id: clientId,
-            tech_stack: techStackArray,
-            start_date: startDate,
-            deadline,
-            hours_logged: 0,
-            percent_complete: 0,
-            status,
-            github_link: githubLink || null,
-            website_link: websiteLink || null,
-            other_link: otherLink || null,
-          },
-        ]);
+        const { error } = await supabase.from("projects").insert([{
+          user_id: user.id,
+          name,
+          client_id: clientId,
+          tech_stack: techStackArray,
+          start_date: startDate,
+          deadline,
+          hours_logged: 0,
+          percent_complete: 0,
+          status,
+          github_link: githubLink || null,
+          website_link: websiteLink || null,
+          other_link: otherLink || null,
+        }]);
         if (error) throw error;
       }
-
-      setName("");
-      setTechStackInput("");
-      setStartDate("");
-      setDeadline("");
-      setGithubLink("");
-      setWebsiteLink("");
-      setOtherLink("");
-      setStatus("In Progress");
-
       await onProjectAdded();
       onClose();
-      return true;
     } catch (error: any) {
-      console.error("Project Save Error:", error);
       setErrorMsg(error.message || "Failed to save project.");
-      return false;
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={projectToEdit ? "Edit Project" : "New Project"}
-    >
+    <Modal isOpen={isOpen} onClose={onClose} title={projectToEdit ? "Edit Project" : "New Project"}>
       <form onSubmit={handleSubmit} className="modal-form">
-        {errorMsg && (
-          <div className="modal-alert modal-alert--error">{errorMsg}</div>
-        )}
+        {errorMsg && <div className="modal-alert modal-alert--error">{errorMsg}</div>}
 
         <div className="form-group">
           <label htmlFor="project-name">Project Name</label>
@@ -216,55 +143,11 @@ export default function AddProjectModal({
           />
         </div>
 
-        <div className="form-group">
-          <label htmlFor="project-client">Client</label>
-          {isAddingClient ? (
-            <div className="new-client-row">
-              <input
-                type="text"
-                placeholder="New client name"
-                value={newClientName}
-                onChange={(e) => setNewClientName(e.target.value)}
-                autoFocus
-              />
-              <button
-                type="button"
-                className="btn btn--primary btn--sm"
-                onClick={handleCreateClient}
-                disabled={loading || !newClientName.trim()}
-              >
-                Add
-              </button>
-              <button
-                type="button"
-                className="btn btn--outline btn--sm"
-                onClick={() => { setIsAddingClient(false); setNewClientName(""); }}
-              >
-                Cancel
-              </button>
-            </div>
-          ) : (
-            <select
-              id="project-client"
-              value={clientId}
-              onChange={(e) => {
-                if (e.target.value === NEW_CLIENT_VALUE) {
-                  setIsAddingClient(true);
-                } else {
-                  setClientId(e.target.value);
-                }
-              }}
-            >
-              {clients.length === 0 && (
-                <option value="" disabled>No clients yet</option>
-              )}
-              {clients.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-              <option value={NEW_CLIENT_VALUE}>+ Add New Client</option>
-            </select>
-          )}
-        </div>
+        <ClientSelect
+          value={clientId}
+          onChange={setClientId}
+          required
+        />
 
         <div className="form-group">
           <label htmlFor="project-tech">Tech Stack (comma separated)</label>
@@ -279,11 +162,7 @@ export default function AddProjectModal({
 
         <div className="form-group">
           <label htmlFor="project-status">Project Status</label>
-          <select
-            id="project-status"
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-          >
+          <select id="project-status" value={status} onChange={(e) => setStatus(e.target.value)}>
             <option value="In Progress">In Progress</option>
             <option value="Coming Soon">Coming Soon</option>
             <option value="Completed">Completed</option>
@@ -341,19 +220,10 @@ export default function AddProjectModal({
         </div>
 
         <div className="modal-actions">
-          <button
-            type="button"
-            className="btn btn--outline"
-            onClick={onClose}
-            disabled={loading}
-          >
+          <button type="button" className="btn btn--outline" onClick={onClose} disabled={loading}>
             Cancel
           </button>
-          <button
-            type="submit"
-            className="btn btn--primary"
-            disabled={loading || !clientId}
-          >
+          <button type="submit" className="btn btn--primary" disabled={loading || !clientId}>
             {loading ? "Saving..." : projectToEdit ? "Update Project" : "Create Project"}
           </button>
         </div>
@@ -366,10 +236,7 @@ export default function AddProjectModal({
         message="Are you sure you want to save these changes?"
         confirmText="Confirm"
         cancelText="Cancel"
-        onConfirm={async () => {
-          setShowConfirm(false);
-          await performSave();
-        }}
+        onConfirm={async () => { setShowConfirm(false); await performSave(); }}
         confirmVariant="primary"
         loading={loading}
       />

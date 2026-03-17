@@ -1,13 +1,9 @@
 import { useState, useEffect } from "react";
 import Modal from "./Modal";
 import ConfirmModal from "./ConfirmModal";
+import ClientSelect from "./ClientSelect";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../auth/AuthProvider";
-
-interface Client {
-  id: string;
-  name: string;
-}
 
 interface AddTransactionModalProps {
   isOpen: boolean;
@@ -25,7 +21,6 @@ export default function AddTransactionModal({
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
-  const [clients, setClients] = useState<Client[]>([]);
 
   const [type, setType] = useState<"Income" | "Expense">("Income");
   const [amount, setAmount] = useState("");
@@ -33,63 +28,41 @@ export default function AddTransactionModal({
   const [date, setDate] = useState("");
   const [category, setCategory] = useState("Client Work");
   const [clientId, setClientId] = useState("");
-
   const [showConfirm, setShowConfirm] = useState(false);
 
   useEffect(() => {
-    async function fetchClients() {
-      if (!user) return;
-      const { data } = await supabase
-        .from("clients")
-        .select("id, name")
-        .order("name");
-      if (data) setClients(data);
-    }
-    fetchClients();
-  }, [user]);
-
-  useEffect(() => {
-    if (transactionToEdit && isOpen) {
+    if (!isOpen) return;
+    if (transactionToEdit) {
       setType(transactionToEdit.type || "Income");
       setAmount(transactionToEdit.amount?.toString() || "");
       setDescription(transactionToEdit.description || "");
       setDate(transactionToEdit.date || "");
-      setCategory(
-        transactionToEdit.category ||
-          (transactionToEdit.type === "Income" ? "Client Work" : "Software")
-      );
-      const foundClient = clients.find(
-        (c) => c.name === transactionToEdit.client
-      );
-      setClientId(foundClient ? foundClient.id : "");
-      setErrorMsg("");
-    } else if (isOpen) {
+      setCategory(transactionToEdit.category || "Client Work");
+      setClientId(transactionToEdit.client_id || "");
+    } else {
       setType("Income");
       setAmount("");
       setDescription("");
       setDate("");
       setCategory("Client Work");
       setClientId("");
-      setErrorMsg("");
     }
+    setErrorMsg("");
     setShowConfirm(false);
-  }, [transactionToEdit, isOpen, clients]);
+  }, [isOpen, transactionToEdit]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!user) return;
-
     if (isNaN(Number(amount)) || Number(amount) <= 0) {
       setErrorMsg("Please enter a valid positive amount.");
       return;
     }
-
     if (transactionToEdit) {
       setShowConfirm(true);
-      return;
+    } else {
+      await performSave();
     }
-
-    await performSave();
   }
 
   async function performSave() {
@@ -98,60 +71,41 @@ export default function AddTransactionModal({
     setErrorMsg("");
 
     try {
+      const payload = {
+        type,
+        amount: Number(amount),
+        description,
+        date,
+        category,
+        client_id: type === "Income" && clientId ? clientId : null,
+      };
+
       if (transactionToEdit) {
         const { error } = await supabase
           .from("transactions")
-          .update({
-            type,
-            amount: Number(amount),
-            description,
-            date,
-            category,
-            client_id: type === "Income" && clientId ? clientId : null,
-          })
+          .update(payload)
           .eq("id", transactionToEdit.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("transactions").insert([
-          {
-            user_id: user.id,
-            type,
-            amount: Number(amount),
-            description,
-            date,
-            category,
-            client_id: type === "Income" && clientId ? clientId : null,
-          },
-        ]);
+        const { error } = await supabase
+          .from("transactions")
+          .insert([{ ...payload, user_id: user.id }]);
         if (error) throw error;
       }
-
-      setType("Income");
-      setAmount("");
-      setDescription("");
-      setDate("");
-      setCategory("Client Work");
-      setClientId("");
 
       onTransactionAdded();
       onClose();
     } catch (error: any) {
-      setErrorMsg(error.message || "Failed to add transaction.");
+      setErrorMsg(error.message || "Failed to save transaction.");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={transactionToEdit ? "Edit Transaction" : "New Transaction"}
-    >
+    <Modal isOpen={isOpen} onClose={onClose} title={transactionToEdit ? "Edit Transaction" : "New Transaction"}>
       <form onSubmit={handleSubmit} className="modal-form">
-        {errorMsg && (
-          <div className="modal-alert modal-alert--error">{errorMsg}</div>
-        )}
+        {errorMsg && <div className="modal-alert modal-alert--error">{errorMsg}</div>}
 
         <div className="form-row">
           <div className="form-group">
@@ -159,7 +113,10 @@ export default function AddTransactionModal({
             <select
               id="tx-type"
               value={type}
-              onChange={(e) => setType(e.target.value as "Income" | "Expense")}
+              onChange={(e) => {
+                setType(e.target.value as "Income" | "Expense");
+                setCategory(e.target.value === "Income" ? "Client Work" : "Software");
+              }}
             >
               <option value="Income">Income</option>
               <option value="Expense">Expense</option>
@@ -167,7 +124,7 @@ export default function AddTransactionModal({
           </div>
 
           <div className="form-group">
-            <label htmlFor="tx-amount">Amount ($)</label>
+            <label htmlFor="tx-amount">Amount</label>
             <input
               id="tx-amount"
               required
@@ -208,11 +165,7 @@ export default function AddTransactionModal({
 
           <div className="form-group">
             <label htmlFor="tx-category">Category</label>
-            <select
-              id="tx-category"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-            >
+            <select id="tx-category" value={category} onChange={(e) => setCategory(e.target.value)}>
               {type === "Income" ? (
                 <>
                   <option value="Client Work">Client Work</option>
@@ -233,39 +186,21 @@ export default function AddTransactionModal({
           </div>
         </div>
 
-        {type === "Income" && clients.length > 0 && (
-          <div className="form-group">
-            <label htmlFor="tx-client">Associated Client (Optional)</label>
-            <select
-              id="tx-client"
-              value={clientId}
-              onChange={(e) => setClientId(e.target.value)}
-            >
-              <option value="">-- No Client --</option>
-              {clients.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
+        {type === "Income" && (
+          <ClientSelect
+            value={clientId}
+            onChange={setClientId}
+            label="Associated Client (Optional)"
+            allowNone
+          />
         )}
 
         <div className="modal-actions">
-          <button
-            type="button"
-            className="btn btn--outline"
-            onClick={onClose}
-            disabled={loading}
-          >
+          <button type="button" className="btn btn--outline" onClick={onClose} disabled={loading}>
             Cancel
           </button>
           <button type="submit" className="btn btn--primary" disabled={loading}>
-            {loading
-              ? "Saving..."
-              : transactionToEdit
-              ? "Update Transaction"
-              : "Save Transaction"}
+            {loading ? "Saving..." : transactionToEdit ? "Update Transaction" : "Save Transaction"}
           </button>
         </div>
       </form>
@@ -277,10 +212,7 @@ export default function AddTransactionModal({
         message="Are you sure you want to save these changes?"
         confirmText="Confirm"
         cancelText="Cancel"
-        onConfirm={() => {
-          setShowConfirm(false);
-          performSave();
-        }}
+        onConfirm={() => { setShowConfirm(false); performSave(); }}
         confirmVariant="primary"
       />
     </Modal>

@@ -1,14 +1,14 @@
 /* ===== Design Tokens ===== */
 :root {
-  --bg-base: #0f0f11;
-  --bg-surface: #1a1a1f;
-  --bg-elevated: #1e1e24;
-  --bg-sidebar: #141417;
-  --accent: #e87b3a;
+  --bg-base:      #16161a;
+  --bg-surface:   #1c1c22;
+  --bg-elevated:  #222228;
+  --bg-sidebar:   #18181e;
+  --accent:       #e87b3a;
   --accent-hover: #d06a2e;
-  --text-primary: #ffffff;
-  --text-secondary: #8a8a9a;
-  --border: #2a2a32;
+  --text-primary:   #f0f0f5;
+  --text-secondary: #72728a;
+  --border:       #2e2e38;
   --status-overdue: #e05252;
   --status-success: #34c759;
 
@@ -174,7 +174,7 @@ img {
 
 .btn--primary {
   background: var(--accent);
-  color: var(--bg-base);
+  color: #ffffff;
 }
 .btn--primary:hover {
   background: var(--accent-hover);
@@ -200,7 +200,7 @@ img {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.875rem;
-  min-width: 600px; /* Force scroll on small screens */
+  min-width: 600px;
 }
 
 .data-table th {
@@ -225,7 +225,7 @@ img {
 }
 
 .data-table tbody tr:nth-child(even) {
-  background: rgba(255, 255, 255, 0.015);
+  background: rgba(255, 255, 255, 0.012);
 }
 
 .data-table tbody tr:hover {
@@ -583,4 +583,22 @@ img {
 .client-select__error {
   font-size: 0.8rem;
   color: var(--status-overdue);
+}
+
+/* ── Action btn extras ────────────────────────── */
+.action-btn--hours { color: #3296FA; }
+.action-btn--hours:hover { background: rgba(50, 150, 250, 0.1); }
+
+.action-btn--progress { color: #34C759; }
+.action-btn--progress:hover { background: rgba(52, 199, 89, 0.1); }
+
+/* ── Invoice description ──────────────────────── */
+.invoice-desc {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.td--muted {
+  color: var(--text-secondary);
+  opacity: 0.4;
 }

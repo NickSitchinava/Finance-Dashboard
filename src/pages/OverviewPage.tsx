@@ -2,13 +2,11 @@ import { useState, useEffect } from "react";
 import StatCard from "../components/ui/StatCard";
 import RevenueLineChart from "../components/charts/RevenueLineChart";
 import ActiveProjectsTable from "../components/tables/ActiveProjectsTable";
-import AddProjectModal from "../components/ui/AddProjectModal";
 import ConfirmModal from "../components/ui/ConfirmModal";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../components/auth/AuthProvider";
 import GitHubHeatmap from "../components/widgets/GitHubHeatmap";
 import GitHubActivityTable from "../components/tables/GitHubActivityTable";
-import AddGitHubActivityModal from "../components/ui/AddGitHubActivityModal";
 import { useCurrency } from "../hooks/useCurrency";
 import { useGitHub } from "../hooks/useGitHub";
 
@@ -32,14 +30,9 @@ export default function OverviewPage() {
     { label: "Project Completion", value: "0%" },
   ]);
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [projectToEdit, setProjectToEdit] = useState<any>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [monthlyRevenue, setMonthlyRevenue] = useState<any[]>([]);
-
   const [githubActivities, setGithubActivities] = useState<any[]>([]);
-  const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
-  const [activityToEdit, setActivityToEdit] = useState<any>(null);
   const [itemToDelete, setItemToDelete] = useState<{
     id: string;
     type: "project" | "github";
@@ -164,24 +157,8 @@ export default function OverviewPage() {
     else fetchGithubActivity();
   }
 
-  function openEditModal(p: any) { setProjectToEdit(p); setIsModalOpen(true); }
-  function openAddModal() { setProjectToEdit(null); setIsModalOpen(true); }
-  function openEditActivity(a: any) { setActivityToEdit(a); setIsActivityModalOpen(true); }
-  function openAddActivity() { setActivityToEdit(null); setIsActivityModalOpen(true); }
-
   return (
     <div className="page">
-      <div className="page__toolbar">
-        {showGitHub && (
-          <button className="btn btn--outline" onClick={openAddActivity}>
-            + New Activity
-          </button>
-        )}
-        <button className="btn btn--primary" onClick={openAddModal}>
-          + New Project
-        </button>
-      </div>
-
       <div className="page__row page__row--4">
         {liveStats.map((stat) => (
           <StatCard key={stat.label} {...stat} />
@@ -207,7 +184,7 @@ export default function OverviewPage() {
         <div className="page__row page__row--full">
           <GitHubActivityTable
             activities={githubActivities}
-            onEdit={openEditActivity}
+            onEdit={() => {}}
             onDelete={(a) => setItemToDelete({ id: a.id, type: "github" })}
           />
         </div>
@@ -219,27 +196,11 @@ export default function OverviewPage() {
         ) : (
           <ActiveProjectsTable
             data={activeProjects}
-            onEdit={openEditModal}
+            onEdit={() => {}}
             onDelete={(p) => p.id && setItemToDelete({ id: p.id, type: "project" })}
           />
         )}
       </div>
-
-      <AddProjectModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onProjectAdded={fetchProjects}
-        projectToEdit={projectToEdit}
-      />
-
-      {showGitHub && (
-        <AddGitHubActivityModal
-          isOpen={isActivityModalOpen}
-          onClose={() => setIsActivityModalOpen(false)}
-          onActivityAdded={fetchGithubActivity}
-          activityToEdit={activityToEdit}
-        />
-      )}
 
       <ConfirmModal
         isOpen={!!itemToDelete}

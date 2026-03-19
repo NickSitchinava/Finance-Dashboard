@@ -12,10 +12,11 @@ interface ClientSelectProps {
   onChange: (clientId: string) => void;
   required?: boolean;
   label?: string;
-  allowNone?: boolean; // show "-- No Client --" option
+  allowNone?: boolean;
 }
 
 const NEW_CLIENT_VALUE = "__new__";
+const PLACEHOLDER_VALUE = "__placeholder__";
 
 export default function ClientSelect({
   value,
@@ -38,10 +39,23 @@ export default function ClientSelect({
         .from("clients")
         .select("id, name")
         .order("name");
-      if (data) setClients(data);
+      if (data) {
+        setClients(data);
+        // For required selects with no current value, auto-select first client
+        if (!allowNone && !value && data.length > 0) {
+          onChange(data[0].id);
+        }
+      }
     }
     fetchClients();
   }, [user]);
+
+  // Determine what value the select should show
+  // If allowNone and value is empty, show placeholder
+  // If !allowNone and value is empty, show placeholder until auto-select fires
+  const selectValue = isAdding
+    ? NEW_CLIENT_VALUE
+    : value || (allowNone ? "" : PLACEHOLDER_VALUE);
 
   async function handleCreateClient() {
     if (!newName.trim() || !user) return;
@@ -66,34 +80,48 @@ export default function ClientSelect({
     }
   }
 
+  function handleChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const val = e.target.value;
+    if (val === NEW_CLIENT_VALUE) {
+      setIsAdding(true);
+    } else if (val === PLACEHOLDER_VALUE) {
+      // do nothing — placeholder selected
+    } else {
+      setIsAdding(false);
+      onChange(val);
+    }
+  }
+
   return (
     <div className="form-group">
       <label>{label}</label>
 
-      {/* Always show the select */}
       <select
-        value={isAdding ? NEW_CLIENT_VALUE : value}
+        value={selectValue}
         required={required && !isAdding}
-        onChange={(e) => {
-          if (e.target.value === NEW_CLIENT_VALUE) {
-            setIsAdding(true);
-          } else {
-            setIsAdding(false);
-            onChange(e.target.value);
-          }
-        }}
+        onChange={handleChange}
       >
-        {allowNone && <option value="">-- No Client --</option>}
-        {clients.length === 0 && !allowNone && (
-          <option value="" disabled>No clients yet</option>
+        {/* Placeholder — always first, disabled so it can't be re-selected */}
+        <option value={PLACEHOLDER_VALUE} disabled>
+          {allowNone ? "-- Select Client --" : "-- Select Client --"}
+        </option>
+
+        {/* None option for optional selects */}
+        {allowNone && (
+          <option value="">No Client</option>
         )}
-        {clients.map((c) => (
-          <option key={c.id} value={c.id}>{c.name}</option>
-        ))}
+
+        {clients.length === 0 ? (
+          <option value="" disabled>No clients yet</option>
+        ) : (
+          clients.map((c) => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))
+        )}
+
         <option value={NEW_CLIENT_VALUE}>+ Add New Client</option>
       </select>
 
-      {/* Inline new client input — appears below select without replacing it */}
       {isAdding && (
         <div className="client-select__new">
           <input

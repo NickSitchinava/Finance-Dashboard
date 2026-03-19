@@ -1,129 +1,207 @@
-.milestone-timeline-widget {
+.ms-widget {
   padding: 24px;
+  overflow: hidden;
+  min-width: 0;
 }
 
-.milestone-timeline__title {
+.ms-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.ms-widget__title {
   font-size: 0.9375rem;
   font-weight: 600;
   color: var(--text-primary);
-  margin-bottom: 24px;
+  margin: 0;
 }
 
-.milestone-timeline-container {
-  overflow-x: auto;
-  padding-bottom: 8px;
-}
-
-.milestone-timeline-container::-webkit-scrollbar {
-  height: 6px;
-}
-.milestone-timeline-container::-webkit-scrollbar-track {
+.ms-progress-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
   background: var(--bg-elevated);
-  border-radius: 3px;
-}
-.milestone-timeline-container::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 3px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 3px 10px;
 }
 
-.milestone-timeline {
+.ms-empty {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+/* Scroll container */
+.ms-scroll {
+  overflow-x: auto;
+  overflow-y: visible;
+  padding-bottom: 10px;
+  contain: layout;
+}
+
+.ms-scroll::-webkit-scrollbar { height: 4px; }
+.ms-scroll::-webkit-scrollbar-track { background: var(--bg-elevated); border-radius: 2px; }
+.ms-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* Timeline list */
+.ms-list {
   display: flex;
   list-style: none;
-  padding: 0;
+  padding: 8px 4px 4px;
   margin: 0;
-  min-width: max-content;
+  width: max-content;
+  align-items: flex-start;
+  gap: 0;
 }
 
-.milestone-item {
+/* Each item — NO opacity transitions to prevent jumping */
+.ms-item {
   position: relative;
-  min-width: 140px;
-  padding-top: 10px;
+  width: 160px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding-right: 16px;
 }
 
-.milestone-item::before {
-  content: "";
+/* Connector */
+.ms-connector {
   position: absolute;
-  top: 22px;
-  left: 24px;
-  width: 100%;
+  top: 11px;
+  left: 22px;
+  width: calc(100% - 6px);
   height: 2px;
   background: var(--bg-elevated);
   z-index: 1;
 }
 
-.milestone-item:last-child::before {
-  display: none;
-}
-
-.milestone-item--completed::before {
+.ms-connector--done {
   background: var(--accent);
 }
 
-.milestone-content {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+/* Node wrapper sits above connector */
+.ms-node-wrap {
   position: relative;
   z-index: 2;
 }
 
-.milestone-node {
+/* Node — solid background so connector line never shows through */
+.ms-node {
   width: 24px;
   height: 24px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-base);
+  background: var(--bg-elevated);
   border: 2px solid var(--border);
-  transition: all 0.3s ease;
+  flex-shrink: 0;
 }
 
-.milestone-node--completed {
+.ms-node--completed {
   background: var(--accent);
   border-color: var(--accent);
-  color: var(--bg-base);
+  color: #fff;
 }
 
-.milestone-node--current {
+.ms-node--current {
+  background: var(--bg-elevated);
   border-color: var(--accent);
   box-shadow: 0 0 0 4px rgba(232, 123, 58, 0.15);
 }
 
-.milestone-check {
-  font-size: 0.75rem;
-  font-weight: bold;
+.ms-node--upcoming {
+  background: var(--bg-elevated);
+  border-color: var(--border);
 }
 
-.milestone-text {
+.ms-node__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--border);
+}
+
+.ms-node--current .ms-node__dot {
+  background: var(--accent);
+}
+
+/* Body */
+.ms-body {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  width: 100%;
 }
 
-.milestone-date {
+.ms-date {
   font-size: 0.6875rem;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
-.milestone-name {
-  font-size: 0.8125rem;
+.ms-title {
+  font-size: 0.8rem;
   font-weight: 500;
   color: var(--text-primary);
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.4;
 }
 
-.milestone-item:not(.milestone-item--completed) .milestone-name {
+/* Completed title — no strikethrough to avoid layout shift */
+.ms-item--done .ms-title {
   color: var(--text-secondary);
 }
 
-.milestone-actions {
-  margin-left: auto;
+/* Footer */
+.ms-footer {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 6px;
   gap: 4px;
 }
 
-.milestone-action-btn {
-  padding: 4px;
+.ms-complete-btn {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--status-success);
+  background: rgba(52, 199, 89, 0.08);
+  border: 1px solid rgba(52, 199, 89, 0.2);
+  border-radius: 4px;
+  padding: 3px 8px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.ms-complete-btn:hover:not(:disabled) {
+  background: rgba(52, 199, 89, 0.15);
+  border-color: rgba(52, 199, 89, 0.4);
+}
+
+.ms-complete-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ms-done-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--status-success);
+}
+
+.ms-actions {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
 }

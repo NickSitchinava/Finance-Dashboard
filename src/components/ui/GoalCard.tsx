@@ -19,10 +19,14 @@ interface GoalCardProps {
 }
 
 const categoryConfig: Record<string, { bg: string; color: string; border: string }> = {
-  Finance:  { bg: "rgba(52, 199, 89, 0.1)",  color: "#34C759", border: "rgba(52, 199, 89, 0.25)" },
-  Career:   { bg: "rgba(232, 123, 58, 0.1)", color: "#E87B3A", border: "rgba(232, 123, 58, 0.25)" },
-  Health:   { bg: "rgba(50, 150, 250, 0.1)", color: "#3296FA", border: "rgba(50, 150, 250, 0.25)" },
-  Learning: { bg: "rgba(164, 80, 255, 0.1)", color: "#A450FF", border: "rgba(164, 80, 255, 0.25)" },
+  Finance:      { bg: "rgba(52, 199, 89, 0.1)",   color: "#34C759", border: "rgba(52, 199, 89, 0.25)"  },
+  Career:       { bg: "rgba(232, 123, 58, 0.1)",  color: "#E87B3A", border: "rgba(232, 123, 58, 0.25)" },
+  Health:       { bg: "rgba(50, 150, 250, 0.1)",  color: "#3296FA", border: "rgba(50, 150, 250, 0.25)" },
+  Learning:     { bg: "rgba(164, 80, 255, 0.1)",  color: "#A450FF", border: "rgba(164, 80, 255, 0.25)" },
+  Personal:     { bg: "rgba(255, 214, 10, 0.1)",  color: "#FFD60A", border: "rgba(255, 214, 10, 0.25)" },
+  Travel:       { bg: "rgba(0, 199, 190, 0.1)",   color: "#00C7BE", border: "rgba(0, 199, 190, 0.25)"  },
+  Business:     { bg: "rgba(255, 69, 58, 0.1)",   color: "#FF453A", border: "rgba(255, 69, 58, 0.25)"  },
+  Other:        { bg: "rgba(138, 138, 154, 0.1)", color: "#8A8A9A", border: "rgba(138, 138, 154, 0.25)"},
 };
 
 const EditIcon = () => (
@@ -59,9 +63,9 @@ export default function GoalCard({ goal, onEdit, onDelete, onRefresh }: GoalCard
   const [completing, setCompleting] = useState(false);
 
   const config = categoryConfig[category] || {
-    bg: "var(--bg-elevated)",
-    color: "var(--text-secondary)",
-    border: "var(--border)",
+    bg: "rgba(138, 138, 154, 0.1)",
+    color: "#8A8A9A",
+    border: "rgba(138, 138, 154, 0.25)",
   };
 
   const isComplete = percentComplete === 100;
@@ -79,11 +83,9 @@ export default function GoalCard({ goal, onEdit, onDelete, onRefresh }: GoalCard
 
   return (
     <div className={`goal-card${isComplete ? " goal-card--complete" : ""}`}>
-      {/* Top accent line */}
       <div className="goal-card__accent" style={{ background: config.color }} />
 
       <div className="goal-card__body">
-        {/* Header */}
         <div className="goal-card__header">
           <span
             className="goal-card__tag"
@@ -91,24 +93,18 @@ export default function GoalCard({ goal, onEdit, onDelete, onRefresh }: GoalCard
           >
             {category}
           </span>
-          {isComplete && (
-            <span className="goal-card__complete-badge">Completed</span>
-          )}
+          {isComplete && <span className="goal-card__complete-badge">Completed</span>}
         </div>
 
-        {/* Title */}
         <h3 className="goal-card__title">{title}</h3>
 
-        {/* Date */}
         <div className="goal-card__date">
           <CalendarIcon />
           <span>Target: {targetDate}</span>
         </div>
 
-        {/* Notes */}
         {notes && <div className="goal-card__notes">{notes}</div>}
 
-        {/* Progress */}
         <div className="goal-card__progress">
           <div className="goal-card__progress-header">
             <span className="goal-card__progress-label">Progress</span>
@@ -130,7 +126,6 @@ export default function GoalCard({ goal, onEdit, onDelete, onRefresh }: GoalCard
           </div>
         </div>
 
-        {/* Actions */}
         <div className="goal-card__actions">
           <div className="goal-card__action-left">
             {!isComplete && (

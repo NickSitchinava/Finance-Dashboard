@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useCurrency } from "../../hooks/useCurrency";
 import "./ClientPaymentsTable.css";
 
 export interface ClientPayment {
@@ -9,6 +10,7 @@ export interface ClientPayment {
   dueDate: string;
   status: "Paid" | "Pending" | "Overdue";
   client_id?: string;
+  description?: string;
 }
 
 interface ClientPaymentsTableProps {
@@ -47,6 +49,7 @@ export default function ClientPaymentsTable({
   onEdit,
   onDelete,
 }: ClientPaymentsTableProps) {
+  const { symbol } = useCurrency();
   const [sortKey, setSortKey] = useState<SortKey>("dueDate");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [page, setPage] = useState(0);
@@ -79,11 +82,7 @@ export default function ClientPaymentsTable({
   function renderSortIcon(key: SortKey) {
     if (sortKey !== key)
       return <span className="sort-icon sort-icon--inactive">↕</span>;
-    return (
-      <span className="sort-icon">
-        {sortDir === "asc" ? "↑" : "↓"}
-      </span>
-    );
+    return <span className="sort-icon">{sortDir === "asc" ? "↑" : "↓"}</span>;
   }
 
   return (
@@ -94,11 +93,12 @@ export default function ClientPaymentsTable({
           <thead>
             <tr>
               <th className="sortable-th" onClick={() => handleSort("client")}>
-                Client Name {renderSortIcon("client")}
+                Client {renderSortIcon("client")}
               </th>
               <th className="sortable-th" onClick={() => handleSort("invoice")}>
                 Invoice # {renderSortIcon("invoice")}
               </th>
+              <th>Description</th>
               <th className="sortable-th" onClick={() => handleSort("amount")}>
                 Amount {renderSortIcon("amount")}
               </th>
@@ -114,17 +114,22 @@ export default function ClientPaymentsTable({
           <tbody>
             {pageData.length === 0 ? (
               <tr>
-                <td colSpan={6} className="td--empty">
-                  No payments found.
-                </td>
+                <td colSpan={7} className="td--empty">No payments found.</td>
               </tr>
             ) : (
               pageData.map((p) => (
                 <tr key={p.id}>
                   <td className="td--bold">{p.client}</td>
                   <td className="td--secondary">{p.invoice}</td>
+                  <td className="td--secondary">
+                    {p.description ? (
+                      <span className="invoice-desc">{p.description}</span>
+                    ) : (
+                      <span className="td--muted">—</span>
+                    )}
+                  </td>
                   <td className="td--amount">
-                    ${Number(p.amount).toLocaleString(undefined, {
+                    {symbol}{Number(p.amount).toLocaleString(undefined, {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
                     })}
@@ -162,23 +167,9 @@ export default function ClientPaymentsTable({
 
       {totalPages > 1 && (
         <div className="pagination">
-          <button
-            className="pagination__btn"
-            disabled={page === 0}
-            onClick={() => setPage((p) => p - 1)}
-          >
-            ←
-          </button>
-          <span className="pagination__info">
-            Page {page + 1} of {totalPages}
-          </span>
-          <button
-            className="pagination__btn"
-            disabled={page >= totalPages - 1}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            →
-          </button>
+          <button className="pagination__btn" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>←</button>
+          <span className="pagination__info">Page {page + 1} of {totalPages}</span>
+          <button className="pagination__btn" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}>→</button>
         </div>
       )}
     </div>

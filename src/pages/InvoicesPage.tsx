@@ -47,6 +47,7 @@ export default function InvoicesPage() {
         dueDate: d.due_date,
         status: d.status,
         client_id: d.client_id,
+        description: d.description || "", // add this line
       }));
       setInvoices(formatted);
 
@@ -84,10 +85,7 @@ export default function InvoicesPage() {
   async function handleDeleteConfirm() {
     if (!itemToDelete) return;
     setIsDeleting(true);
-    const { error } = await supabase
-      .from("invoices")
-      .delete()
-      .eq("id", itemToDelete.id);
+    const { error } = await supabase.from("invoices").delete().eq("id", itemToDelete.id);
     if (error) console.error("Error deleting invoice:", error);
     else fetchInvoices();
     setIsDeleting(false);

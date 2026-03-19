@@ -11,6 +11,17 @@ interface AddGoalModalProps {
   goalToEdit?: any | null;
 }
 
+const CATEGORIES = [
+  "Finance",
+  "Career",
+  "Health",
+  "Learning",
+  "Personal",
+  "Travel",
+  "Business",
+  "Other",
+];
+
 export default function AddGoalModal({
   isOpen,
   onClose,
@@ -22,24 +33,25 @@ export default function AddGoalModal({
   const [errorMsg, setErrorMsg] = useState("");
 
   const [title, setTitle] = useState("");
-  const [category, setCategory] = useState("Learning");
+  const [category, setCategory] = useState("Personal");
   const [targetDate, setTargetDate] = useState("");
   const [notes, setNotes] = useState("");
-
   const [showConfirm, setShowConfirm] = useState(false);
 
   useEffect(() => {
-    if (goalToEdit && isOpen) {
+    if (!isOpen) return;
+    if (goalToEdit) {
       setTitle(goalToEdit.title || "");
-      setCategory(goalToEdit.category || "Learning");
+      setCategory(goalToEdit.category || "Personal");
       setTargetDate(goalToEdit.targetDate || "");
       setNotes(goalToEdit.notes || "");
-    } else if (isOpen) {
+    } else {
       setTitle("");
-      setCategory("Learning");
+      setCategory("Personal");
       setTargetDate("");
       setNotes("");
     }
+    setErrorMsg("");
     setShowConfirm(false);
   }, [goalToEdit, isOpen]);
 
@@ -48,9 +60,9 @@ export default function AddGoalModal({
     if (!user) return;
     if (goalToEdit) {
       setShowConfirm(true);
-      return;
+    } else {
+      await performSave();
     }
-    await performSave();
   }
 
   async function performSave() {
@@ -71,46 +83,30 @@ export default function AddGoalModal({
           .eq("id", goalToEdit.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("goals").insert([
-          {
-            user_id: user.id,
-            title,
-            category,
-            target_date: targetDate,
-            notes: notes || null,
-            percent_complete: 0,
-          },
-        ]);
+        const { error } = await supabase.from("goals").insert([{
+          user_id: user.id,
+          title,
+          category,
+          target_date: targetDate,
+          notes: notes || null,
+          percent_complete: 0,
+        }]);
         if (error) throw error;
       }
 
-      setTitle("");
-      setCategory("Learning");
-      setTargetDate("");
-      setNotes("");
-
       await onGoalAdded();
       onClose();
-      return true;
     } catch (error: any) {
-      console.error("Goal Save Error:", error);
       setErrorMsg(error.message || "Failed to save goal.");
-      return false;
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={goalToEdit ? "Edit Goal" : "New Goal"}
-    >
+    <Modal isOpen={isOpen} onClose={onClose} title={goalToEdit ? "Edit Goal" : "New Goal"}>
       <form onSubmit={handleSubmit} className="modal-form">
-        {errorMsg && (
-          <div className="modal-alert modal-alert--error">{errorMsg}</div>
-        )}
+        {errorMsg && <div className="modal-alert modal-alert--error">{errorMsg}</div>}
 
         <div className="form-group">
           <label htmlFor="goal-title">Goal Title</label>
@@ -132,10 +128,9 @@ export default function AddGoalModal({
             value={category}
             onChange={(e) => setCategory(e.target.value)}
           >
-            <option value="Finance">Finance</option>
-            <option value="Career">Career</option>
-            <option value="Health">Health</option>
-            <option value="Learning">Learning</option>
+            {CATEGORIES.map((cat) => (
+              <option key={cat} value={cat}>{cat}</option>
+            ))}
           </select>
         </div>
 
@@ -163,12 +158,7 @@ export default function AddGoalModal({
         </div>
 
         <div className="modal-actions">
-          <button
-            type="button"
-            className="btn btn--outline"
-            onClick={onClose}
-            disabled={loading}
-          >
+          <button type="button" className="btn btn--outline" onClick={onClose} disabled={loading}>
             Cancel
           </button>
           <button type="submit" className="btn btn--primary" disabled={loading}>
@@ -184,10 +174,7 @@ export default function AddGoalModal({
         message="Are you sure you want to save these changes?"
         confirmText="Confirm"
         cancelText="Cancel"
-        onConfirm={async () => {
-          setShowConfirm(false);
-          await performSave();
-        }}
+        onConfirm={async () => { setShowConfirm(false); await performSave(); }}
         confirmVariant="primary"
         loading={loading}
       />

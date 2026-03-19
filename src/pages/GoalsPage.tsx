@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import StatCard from "../components/ui/StatCard";
 import MilestoneTimeline from "../components/ui/MilestoneTimeline";
 import GoalCard from "../components/ui/GoalCard";
 import AddGoalModal from "../components/ui/AddGoalModal";
@@ -7,6 +6,7 @@ import AddMilestoneModal from "../components/ui/AddMilestoneModal";
 import ConfirmModal from "../components/ui/ConfirmModal";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../components/auth/AuthProvider";
+import "./GoalsPage.css";
 
 export default function GoalsPage() {
   const { user } = useAuth();
@@ -28,12 +28,10 @@ export default function GoalsPage() {
   async function fetchGoalsAndMilestones() {
     if (!user) return;
     setLoading(true);
-
     const [{ data: goalsData }, { data: milestonesData }] = await Promise.all([
       supabase.from("goals").select("*").order("target_date", { ascending: true }),
       supabase.from("milestones").select("*").order("target_date", { ascending: true }),
     ]);
-
     if (goalsData) {
       setGoals(goalsData.map((d) => ({
         ...d,
@@ -41,7 +39,6 @@ export default function GoalsPage() {
         percentComplete: d.percent_complete,
       })));
     }
-
     if (milestonesData) setMilestones(milestonesData);
     setLoading(false);
   }
@@ -65,12 +62,8 @@ export default function GoalsPage() {
 
   const activeGoals = goals.filter((g) => g.percentComplete < 100);
   const completedGoals = goals.filter((g) => g.percentComplete === 100);
-
-  const liveStats = [
-    { label: "Total Goals", value: goals.length.toString() },
-    { label: "Completed", value: completedGoals.length.toString() },
-    { label: "In Progress", value: activeGoals.length.toString() },
-  ];
+  const completedMilestones = milestones.filter((m) => m.completed);
+  const activeMilestones = milestones.filter((m) => !m.completed);
 
   const goalCardProps = (goal: any) => ({
     key: goal.id,
@@ -91,12 +84,48 @@ export default function GoalsPage() {
         </button>
       </div>
 
-      <div className="page__row page__row--3">
-        {liveStats.map((stat) => (
-          <StatCard key={stat.label} {...stat} />
-        ))}
+      {/* Stats row */}
+      <div className="goals-stats-row">
+        <div className="goals-stats-group">
+          <div className="goals-stats-group__label">Goals</div>
+          <div className="goals-stats-group__cards">
+            <div className="goals-stat-card">
+              <span className="goals-stat-card__value">{goals.length}</span>
+              <span className="goals-stat-card__label">Total</span>
+            </div>
+            <div className="goals-stat-card goals-stat-card--accent">
+              <span className="goals-stat-card__value">{activeGoals.length}</span>
+              <span className="goals-stat-card__label">In Progress</span>
+            </div>
+            <div className="goals-stat-card goals-stat-card--success">
+              <span className="goals-stat-card__value">{completedGoals.length}</span>
+              <span className="goals-stat-card__label">Completed</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="goals-stats-divider" />
+
+        <div className="goals-stats-group">
+          <div className="goals-stats-group__label">Milestones</div>
+          <div className="goals-stats-group__cards">
+            <div className="goals-stat-card">
+              <span className="goals-stat-card__value">{milestones.length}</span>
+              <span className="goals-stat-card__label">Total</span>
+            </div>
+            <div className="goals-stat-card goals-stat-card--accent">
+              <span className="goals-stat-card__value">{activeMilestones.length}</span>
+              <span className="goals-stat-card__label">In Progress</span>
+            </div>
+            <div className="goals-stat-card goals-stat-card--success">
+              <span className="goals-stat-card__value">{completedMilestones.length}</span>
+              <span className="goals-stat-card__label">Completed</span>
+            </div>
+          </div>
+        </div>
       </div>
 
+      {/* Timeline */}
       <div className="page__row page__row--full">
         <MilestoneTimeline
           milestones={milestones.map((m) => ({
@@ -107,6 +136,7 @@ export default function GoalsPage() {
           }))}
           onEdit={openEditMilestone}
           onDelete={(m) => setItemToDelete({ id: m.id, type: "milestone" })}
+          onRefresh={fetchGoalsAndMilestones}
         />
       </div>
 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import Modal from "./Modal";
 import ConfirmModal from "./ConfirmModal";
+import ClientSelect from "./ClientSelect";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../auth/AuthProvider";
 
@@ -20,65 +21,68 @@ export default function AddInvoiceModal({
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
-  const [clients, setClients] = useState<any[]>([]);
 
+  const [clientId, setClientId] = useState("");
   const [clientName, setClientName] = useState("");
   const [amount, setAmount] = useState("");
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [status, setStatus] = useState<"Paid" | "Pending" | "Overdue">("Pending");
-  const [clientId, setClientId] = useState("");
-
+  const [description, setDescription] = useState("");
   const [showConfirm, setShowConfirm] = useState(false);
 
   useEffect(() => {
-    async function fetchClients() {
-      if (!user) return;
+    async function lookupClientName() {
+      if (!clientId) { setClientName(""); return; }
       const { data } = await supabase
         .from("clients")
-        .select("id, name")
-        .order("name");
-      if (data) setClients(data);
+        .select("name")
+        .eq("id", clientId)
+        .single();
+      if (data) setClientName(data.name);
     }
-    fetchClients();
-  }, [user]);
+    lookupClientName();
+  }, [clientId]);
 
   useEffect(() => {
-    if (invoiceToEdit && isOpen) {
+    if (!isOpen) return;
+    if (invoiceToEdit) {
+      setClientId(invoiceToEdit.client_id || "");
       setClientName(invoiceToEdit.client || "");
       setAmount(invoiceToEdit.amount?.toString() || "");
       setInvoiceNumber(invoiceToEdit.invoice || "");
       setDueDate(invoiceToEdit.dueDate || "");
       setStatus(invoiceToEdit.status || "Pending");
-      setClientId(invoiceToEdit.client_id || "");
-      setErrorMsg("");
-    } else if (isOpen) {
+      setDescription(invoiceToEdit.description || "");
+    } else {
+      setClientId("");
       setClientName("");
       setAmount("");
       setInvoiceNumber("");
       setDueDate("");
       setStatus("Pending");
-      setClientId("");
-      setErrorMsg("");
+      setDescription("");
     }
+    setErrorMsg("");
     setShowConfirm(false);
-  }, [invoiceToEdit, isOpen]);
+  }, [isOpen, invoiceToEdit]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!user) return;
-
     if (isNaN(Number(amount)) || Number(amount) <= 0) {
       setErrorMsg("Please enter a valid positive amount.");
       return;
     }
-
-    if (invoiceToEdit) {
-      setShowConfirm(true);
+    if (!clientId) {
+      setErrorMsg("Please select or create a client.");
       return;
     }
-
-    await performSave();
+    if (invoiceToEdit) {
+      setShowConfirm(true);
+    } else {
+      await performSave();
+    }
   }
 
   async function performSave() {
@@ -95,6 +99,7 @@ export default function AddInvoiceModal({
         due_date: dueDate,
         status,
         client_id: clientId || null,
+        description: description || null,
       };
 
       if (invoiceToEdit) {
@@ -110,58 +115,24 @@ export default function AddInvoiceModal({
 
       await onInvoiceAdded();
       onClose();
-      return true;
     } catch (error: any) {
-      console.error("Invoice Save Error:", error);
       setErrorMsg(error.message || "Failed to save invoice.");
-      return false;
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={invoiceToEdit ? "Edit Invoice" : "New Invoice"}
-    >
+    <Modal isOpen={isOpen} onClose={onClose} title={invoiceToEdit ? "Edit Invoice" : "New Invoice"}>
       <form onSubmit={handleSubmit} className="modal-form">
-        {errorMsg && (
-          <div className="modal-alert modal-alert--error">{errorMsg}</div>
-        )}
+        {errorMsg && <div className="modal-alert modal-alert--error">{errorMsg}</div>}
 
-        <div className="form-group">
-          <label htmlFor="invoice-client">Client Name</label>
-          {clients.length > 0 ? (
-            <select
-              id="invoice-client"
-              value={clientId}
-              onChange={(e) => {
-                const id = e.target.value;
-                setClientId(id);
-                const client = clients.find((c) => c.id === id);
-                if (client) setClientName(client.name);
-              }}
-            >
-              <option value="">-- Select Client --</option>
-              {clients.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <input
-              id="invoice-client"
-              required
-              type="text"
-              placeholder="e.g. Acme Corp"
-              value={clientName}
-              onChange={(e) => setClientName(e.target.value)}
-            />
-          )}
-        </div>
+        <ClientSelect
+          value={clientId}
+          onChange={setClientId}
+          required
+          label="Client"
+        />
 
         <div className="form-row">
           <div className="form-group">
@@ -177,7 +148,7 @@ export default function AddInvoiceModal({
           </div>
 
           <div className="form-group">
-            <label htmlFor="invoice-amount">Amount ($)</label>
+            <label htmlFor="invoice-amount">Amount</label>
             <input
               id="invoice-amount"
               required
@@ -218,21 +189,23 @@ export default function AddInvoiceModal({
           </div>
         </div>
 
+        <div className="form-group">
+          <label htmlFor="invoice-description">Description (Optional)</label>
+          <textarea
+            id="invoice-description"
+            rows={3}
+            placeholder="e.g. Website redesign — Phase 1 deposit"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+        </div>
+
         <div className="modal-actions">
-          <button
-            type="button"
-            className="btn btn--outline"
-            onClick={onClose}
-            disabled={loading}
-          >
+          <button type="button" className="btn btn--outline" onClick={onClose} disabled={loading}>
             Cancel
           </button>
           <button type="submit" className="btn btn--primary" disabled={loading}>
-            {loading
-              ? "Saving..."
-              : invoiceToEdit
-              ? "Update Invoice"
-              : "Save Invoice"}
+            {loading ? "Saving..." : invoiceToEdit ? "Update Invoice" : "Save Invoice"}
           </button>
         </div>
       </form>
@@ -244,10 +217,7 @@ export default function AddInvoiceModal({
         message="Are you sure you want to save these changes?"
         confirmText="Confirm"
         cancelText="Cancel"
-        onConfirm={async () => {
-          setShowConfirm(false);
-          await performSave();
-        }}
+        onConfirm={async () => { setShowConfirm(false); await performSave(); }}
         confirmVariant="primary"
         loading={loading}
       />

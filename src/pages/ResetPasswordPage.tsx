@@ -23,33 +23,51 @@ function Shape({
   );
 }
 
+type State = "loading" | "ready" | "done" | "error";
+
 export default function ResetPasswordPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
-  const [done, setDone] = useState(false);
-  const [validSession, setValidSession] = useState(false);
-  const [checking, setChecking] = useState(true);
+  const [state, setState] = useState<State>("loading");
   const navigate = useNavigate();
 
- useEffect(() => {
-  console.log("HASH:", window.location.hash);
-  console.log("SEARCH:", window.location.search);
-  console.log("HREF:", window.location.href);
+  useEffect(() => {
+    async function init() {
+      // Parse tokens from URL hash
+      // Hash format: #access_token=...&refresh_token=...&type=recovery
+      const hash = window.location.hash.substring(1); // remove leading #
+      const params = new URLSearchParams(hash);
+      const accessToken = params.get("access_token");
+      const refreshToken = params.get("refresh_token");
+      const type = params.get("type");
 
-  const timer = setTimeout(async () => {
-    const { data } = await supabase.auth.getSession();
-    console.log("SESSION:", data.session);
-    setValidSession(!!data.session);
-    if (!data.session) {
-      setErrorMsg("Invalid or expired reset link. Please request a new one.");
+      if (!accessToken || !refreshToken || type !== "recovery") {
+        setState("error");
+        setErrorMsg("Invalid or expired reset link. Please request a new one.");
+        return;
+      }
+
+      // Set the session using the tokens from the URL
+      const { error } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      });
+
+      if (error) {
+        setState("error");
+        setErrorMsg("This reset link has expired. Please request a new one.");
+        return;
+      }
+
+      // Clean tokens from URL bar
+      window.history.replaceState(null, "", window.location.pathname);
+      setState("ready");
     }
-    setChecking(false);
-  }, 500);
 
-  return () => clearTimeout(timer);
-}, []);
+    init();
+  }, []);
 
   async function handleReset(e: React.FormEvent) {
     e.preventDefault();
@@ -71,7 +89,7 @@ export default function ResetPasswordPage() {
     if (error) {
       setErrorMsg(error.message);
     } else {
-      setDone(true);
+      setState("done");
       await supabase.auth.signOut();
       setTimeout(() => navigate("/login"), 3000);
     }
@@ -94,27 +112,23 @@ export default function ResetPasswordPage() {
             <img src={logo} alt="F-Dash Logo" />
           </div>
           <h2>Set New Password</h2>
-          <p>Enter your new password below</p>
+          <p>
+            {state === "loading" && "Verifying reset link..."}
+            {state === "ready" && "Enter your new password below"}
+            {state === "done" && "Password updated!"}
+            {state === "error" && "Something went wrong"}
+          </p>
         </div>
 
         {errorMsg && <div className="login-alert">{errorMsg}</div>}
 
-        {checking ? (
+        {state === "loading" && (
           <div className="login-sent">
-            <p className="login-sent__text">Verifying reset link...</p>
+            <div className="auth-loading__spinner" style={{ margin: "0 auto" }} />
           </div>
-        ) : done ? (
-          <div className="login-sent">
-            <div className="login-sent__icon">
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--status-success)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-            </div>
-            <p className="login-sent__text">
-              Password updated successfully! Redirecting you to sign in...
-            </p>
-          </div>
-        ) : validSession ? (
+        )}
+
+        {state === "ready" && (
           <form className="login-form" onSubmit={handleReset}>
             <div className="form-group">
               <label htmlFor="new-password">New Password</label>
@@ -126,6 +140,7 @@ export default function ResetPasswordPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
+                autoFocus
               />
             </div>
             <div className="form-group">
@@ -147,7 +162,22 @@ export default function ResetPasswordPage() {
               {loading ? "Updating..." : "Update Password"}
             </button>
           </form>
-        ) : (
+        )}
+
+        {state === "done" && (
+          <div className="login-sent">
+            <div className="login-sent__icon">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--status-success)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </div>
+            <p className="login-sent__text">
+              Password updated successfully! Redirecting to sign in...
+            </p>
+          </div>
+        )}
+
+        {state === "error" && (
           <div className="login-sent">
             <button
               type="button"

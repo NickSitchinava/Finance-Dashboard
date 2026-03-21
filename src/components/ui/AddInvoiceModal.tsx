@@ -128,10 +128,12 @@ export default function AddInvoiceModal({
         {errorMsg && <div className="modal-alert modal-alert--error">{errorMsg}</div>}
 
         <ClientSelect
+          key={isOpen ? `invoice-${invoiceToEdit?.id || "new"}` : "closed"}
           value={clientId}
           onChange={setClientId}
           required
           label="Client"
+          autoSelect={false}
         />
 
         <div className="form-row">

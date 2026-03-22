@@ -188,10 +188,11 @@ export default function AddTransactionModal({
 
         {type === "Income" && (
           <ClientSelect
+            key={isOpen ? `tx-${transactionToEdit?.id || "new"}` : "closed"}
             value={clientId}
             onChange={setClientId}
             label="Associated Client (Optional)"
-            allowNone
+            autoSelect={false}
           />
         )}
 

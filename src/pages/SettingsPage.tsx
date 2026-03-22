@@ -131,11 +131,13 @@ export default function SettingsPage() {
     // Add cache-busting timestamp so the browser loads the new image
     const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`;
 
-    await supabase.from("profiles").upsert({
-      id: user.id,
-      avatar_url: urlData.publicUrl, // save clean URL to DB
-      updated_at: new Date().toISOString(),
-    });
+await supabase.from("profiles").upsert({
+  id: user.id,
+  avatar_url: publicUrl, // ✅ save cache-busting URL to DB too
+  updated_at: new Date().toISOString(),
+});
+
+setAvatarUrl(publicUrl);
 
     // Update context so sidebar refreshes immediately
     setAvatarUrl(publicUrl);

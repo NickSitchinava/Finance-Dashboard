@@ -23,15 +23,18 @@
 .sidebar__avatar {
   width: 38px;
   height: 38px;
-  border-radius: 10px;
+  border-radius: 50%;
   background: var(--accent);
-  color: var(--bg-base);
+  color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
   font-size: 1rem;
   flex-shrink: 0;
+  overflow: hidden;
+  padding: 0;        /* add this */
+  line-height: 1;    /* add this */
 }
 
 .sidebar__profile-info {
@@ -140,4 +143,23 @@
   .sidebar--open {
     transform: translateX(0);
   }
+}
+
+.sidebar__profile {
+  cursor: pointer;
+  transition: background 0.15s;
+  text-decoration: none;
+}
+
+.sidebar__profile:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.sidebar__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 0;  /* let overflow:hidden handle the clipping */
+  display: block;
+  flex-shrink: 0;
 }

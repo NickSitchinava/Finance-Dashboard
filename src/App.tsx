@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./components/auth/AuthProvider";
+import { ProfileProvider } from "./components/auth/ProfileContext";
 import AuthGuard from "./components/auth/AuthGuard";
 import AppLayout from "./components/layout/AppLayout";
 import ChatbotButton from "./components/ui/ChatbotButton";
@@ -14,12 +15,14 @@ import SettingsPage from "./pages/SettingsPage";
 import LoginPage from "./pages/LoginPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 
+
 export default function App() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const toggleChat = () => setIsChatOpen((prev) => !prev);
 
   return (
     <AuthProvider>
+      <ProfileProvider>
       <BrowserRouter>
         <Routes>
           {/* Public routes */}
@@ -47,6 +50,7 @@ export default function App() {
           onClose={() => setIsChatOpen(false)}
         />
       </BrowserRouter>
+      </ProfileProvider>
     </AuthProvider>
   );
 }

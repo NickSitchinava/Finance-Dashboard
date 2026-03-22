@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "../components/auth/AuthProvider";
+import { useProfile } from "../components/auth/ProfileContext";
 import { supabase } from "../lib/supabase";
 import "./SettingsPage.css";
 
@@ -22,7 +23,7 @@ const LockIcon = () => (
 const GearIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="12" r="3" />
-    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l-.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
   </svg>
 );
 
@@ -43,23 +44,19 @@ function applyTheme(dark: boolean) {
 
 export default function SettingsPage() {
   const { user } = useAuth();
+  const { avatarUrl, fullName, setAvatarUrl, setFullName } = useProfile();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState<TabType>("general");
   const [loading, setLoading] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [message, setMessage] = useState({ text: "", type: "" });
 
-  // General
-  const [fullName, setFullName] = useState("");
+  // Local form state — initialised from ProfileContext
+  const [localName, setLocalName] = useState(fullName);
   const [bio, setBio] = useState("");
-  const [avatarUrl, setAvatarUrl] = useState("");
-
-  // Security
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [is2FAEnabled, setIs2FAEnabled] = useState(false);
-
-  // Preferences
   const [currency, setCurrency] = useState("USD");
   const [darkMode, setDarkMode] = useState(true);
   const [showGitHub, setShowGitHub] = useState(true);
@@ -77,14 +74,10 @@ export default function SettingsPage() {
         .select("*")
         .eq("id", user.id)
         .single();
-
-      if (error && error.code !== "PGRST116") {
-        console.error("Error fetching profile:", error);
-      }
+      if (error && error.code !== "PGRST116") console.error(error);
       if (data) {
-        setFullName(data.full_name || "");
+        setLocalName(data.full_name || "");
         setBio(data.bio || "");
-        setAvatarUrl(data.avatar_url || "");
       }
     }
     fetchProfile();
@@ -101,6 +94,11 @@ export default function SettingsPage() {
     }
   }, [user]);
 
+  // Keep local name in sync with context
+  useEffect(() => {
+    setLocalName(fullName);
+  }, [fullName]);
+
   function showMessage(text: string, type: "success" | "error") {
     setMessage({ text, type });
     setTimeout(() => setMessage({ text: "", type: "" }), 3000);
@@ -110,8 +108,8 @@ export default function SettingsPage() {
     const file = e.target.files?.[0];
     if (!file || !user) return;
 
-    if (file.size > 1024 * 1024) {
-      showMessage("File must be under 1MB.", "error");
+    if (file.size > 2 * 1024 * 1024) {
+      showMessage("File must be under 2MB.", "error");
       return;
     }
 
@@ -130,14 +128,16 @@ export default function SettingsPage() {
     }
 
     const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(filePath);
-    const publicUrl = urlData.publicUrl;
+    // Add cache-busting timestamp so the browser loads the new image
+    const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`;
 
     await supabase.from("profiles").upsert({
       id: user.id,
-      avatar_url: publicUrl,
+      avatar_url: urlData.publicUrl, // save clean URL to DB
       updated_at: new Date().toISOString(),
     });
 
+    // Update context so sidebar refreshes immediately
     setAvatarUrl(publicUrl);
     showMessage("Photo updated!", "success");
     setUploadingPhoto(false);
@@ -149,7 +149,7 @@ export default function SettingsPage() {
     setLoading(true);
     const { error } = await supabase.from("profiles").upsert({
       id: user.id,
-      full_name: fullName,
+      full_name: localName,
       bio,
       updated_at: new Date().toISOString(),
     });
@@ -157,6 +157,7 @@ export default function SettingsPage() {
     if (error) {
       showMessage(error.message, "error");
     } else {
+      setFullName(localName); // update context so sidebar name refreshes
       showMessage("Profile updated successfully!", "success");
     }
   }
@@ -222,7 +223,6 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {/* ── General ───────────────────────────── */}
           {activeTab === "general" && (
             <div className="settings-section">
               <div className="settings-card">
@@ -238,7 +238,7 @@ export default function SettingsPage() {
                     {avatarUrl ? (
                       <img src={avatarUrl} alt="Avatar" />
                     ) : (
-                      fullName.charAt(0).toUpperCase() || "N"
+                      localName.charAt(0).toUpperCase() || "N"
                     )}
                     <div className="profile-upload__overlay">
                       <CameraIcon />
@@ -253,7 +253,7 @@ export default function SettingsPage() {
                     >
                       {uploadingPhoto ? "Uploading..." : "Change Photo"}
                     </button>
-                    <p className="profile-upload__hint">JPG, GIF or PNG. 1MB Max.</p>
+                    <p className="profile-upload__hint">JPG, GIF or PNG. 2MB Max.</p>
                     <input
                       ref={fileInputRef}
                       type="file"
@@ -269,8 +269,8 @@ export default function SettingsPage() {
                     <label>Full Name</label>
                     <input
                       type="text"
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
+                      value={localName}
+                      onChange={(e) => setLocalName(e.target.value)}
                       placeholder="Enter your name"
                     />
                   </div>
@@ -300,13 +300,11 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {/* ── Security ──────────────────────────── */}
           {activeTab === "security" && (
             <div className="settings-section">
               <div className="settings-card">
                 <h3 className="settings-card__title">Change Password</h3>
                 <p className="settings-card__desc">Manage your password and account security.</p>
-
                 <form onSubmit={handleChangePassword} className="modal-form">
                   <div className="form-group">
                     <label>New Password</label>
@@ -343,11 +341,7 @@ export default function SettingsPage() {
                     <span className="toggle-group__desc">Add an extra layer of security to your account.</span>
                   </div>
                   <label className="switch">
-                    <input
-                      type="checkbox"
-                      checked={is2FAEnabled}
-                      onChange={(e) => setIs2FAEnabled(e.target.checked)}
-                    />
+                    <input type="checkbox" checked={is2FAEnabled} onChange={(e) => setIs2FAEnabled(e.target.checked)} />
                     <span className="slider" />
                   </label>
                 </div>
@@ -355,7 +349,6 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {/* ── Preferences ───────────────────────── */}
           {activeTab === "preferences" && (
             <div className="settings-section">
               <div className="settings-card">
@@ -377,11 +370,7 @@ export default function SettingsPage() {
                     <span className="toggle-group__desc">Switch between dark and light themes.</span>
                   </div>
                   <label className="switch">
-                    <input
-                      type="checkbox"
-                      checked={darkMode}
-                      onChange={(e) => setDarkMode(e.target.checked)}
-                    />
+                    <input type="checkbox" checked={darkMode} onChange={(e) => setDarkMode(e.target.checked)} />
                     <span className="slider" />
                   </label>
                 </div>
@@ -392,11 +381,7 @@ export default function SettingsPage() {
                     <span className="toggle-group__desc">Show GitHub heatmap and activity sections across the dashboard.</span>
                   </div>
                   <label className="switch">
-                    <input
-                      type="checkbox"
-                      checked={showGitHub}
-                      onChange={(e) => setShowGitHub(e.target.checked)}
-                    />
+                    <input type="checkbox" checked={showGitHub} onChange={(e) => setShowGitHub(e.target.checked)} />
                     <span className="slider" />
                   </label>
                 </div>
@@ -409,11 +394,7 @@ export default function SettingsPage() {
                       <span className="toggle-group__desc">Security alerts and billing information.</span>
                     </div>
                     <label className="switch">
-                      <input
-                        type="checkbox"
-                        checked={notifications.account}
-                        onChange={(e) => setNotifications({ ...notifications, account: e.target.checked })}
-                      />
+                      <input type="checkbox" checked={notifications.account} onChange={(e) => setNotifications({ ...notifications, account: e.target.checked })} />
                       <span className="slider" />
                     </label>
                   </div>
@@ -423,11 +404,7 @@ export default function SettingsPage() {
                       <span className="toggle-group__desc">Notifications about project progress and deadlines.</span>
                     </div>
                     <label className="switch">
-                      <input
-                        type="checkbox"
-                        checked={notifications.projects}
-                        onChange={(e) => setNotifications({ ...notifications, projects: e.target.checked })}
-                      />
+                      <input type="checkbox" checked={notifications.projects} onChange={(e) => setNotifications({ ...notifications, projects: e.target.checked })} />
                       <span className="slider" />
                     </label>
                   </div>

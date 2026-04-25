@@ -602,3 +602,71 @@ img {
   color: var(--text-secondary);
   opacity: 0.4;
 }
+
+/* ── Revenue Line Chart ───────────────────────── */
+.revenue-line-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.revenue-line-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.revenue-line-header__left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.revenue-line-header__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+}
+
+.revenue-line-header__total {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.1;
+}
+
+.revenue-line-header__sub {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.revenue-line-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.revenue-line-badge--up {
+  background: rgba(52, 199, 89, 0.1);
+  color: var(--status-success);
+  border: 1px solid rgba(52, 199, 89, 0.2);
+}
+
+.revenue-line-badge--down {
+  background: rgba(224, 82, 82, 0.1);
+  color: var(--status-overdue);
+  border: 1px solid rgba(224, 82, 82, 0.2);
+}
+
+.revenue-line-badge__label {
+  font-weight: 400;
+  opacity: 0.8;
+}

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import "./GitHubActivityTable.css";
 
 export interface GitHubActivity {
@@ -13,6 +14,8 @@ interface GitHubActivityTableProps {
   onEdit: (activity: GitHubActivity) => void;
   onDelete: (activity: GitHubActivity) => void;
 }
+
+const PAGE_SIZE = 5;
 
 const EditIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -33,6 +36,11 @@ export default function GitHubActivityTable({
   onEdit,
   onDelete,
 }: GitHubActivityTableProps) {
+  const [page, setPage] = useState(0);
+
+  const totalPages = Math.ceil(activities.length / PAGE_SIZE) || 1;
+  const pageData = activities.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
   return (
     <div className="card table-card">
       <div className="table-card__header">
@@ -50,14 +58,14 @@ export default function GitHubActivityTable({
             </tr>
           </thead>
           <tbody>
-            {activities.length === 0 ? (
+            {pageData.length === 0 ? (
               <tr>
                 <td colSpan={5} className="td--empty">
                   No GitHub activity recorded yet.
                 </td>
               </tr>
             ) : (
-              activities.map((a) => (
+              pageData.map((a) => (
                 <tr key={a.id}>
                   <td className="td--bold">{a.repository}</td>
                   <td>
@@ -91,6 +99,28 @@ export default function GitHubActivityTable({
           </tbody>
         </table>
       </div>
+
+      {totalPages > 1 && (
+        <div className="pagination">
+          <button
+            className="pagination__btn"
+            disabled={page === 0}
+            onClick={() => setPage((p) => p - 1)}
+          >
+            ←
+          </button>
+          <span className="pagination__info">
+            Page {page + 1} of {totalPages}
+          </span>
+          <button
+            className="pagination__btn"
+            disabled={page >= totalPages - 1}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            →
+          </button>
+        </div>
+      )}
     </div>
   );
 }

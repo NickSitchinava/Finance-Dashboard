@@ -51,17 +51,19 @@ const PinIcon = () => (
 );
 
 function parseNotes(text: string) {
-  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const urlRegex = /((?:https?:\/\/|www\.)[^\s]+|[a-zA-Z0-9-]+(?:\.[a-zA-Z]{2,})+(?:\/[^\s]*)?)/g;
   const parts = text.split(urlRegex);
-  return parts.map((part, i) =>
-    urlRegex.test(part) ? (
-      <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="client-card__note-link">
-        {part}
-      </a>
-    ) : (
-      <span key={i}>{part}</span>
-    )
-  );
+  return parts.map((part, i) => {
+    if (urlRegex.test(part)) {
+      const href = /^https?:\/\//.test(part) ? part : `https://${part}`;
+      return (
+        <a key={i} href={href} target="_blank" rel="noopener noreferrer" className="client-card__note-link">
+          {part}
+        </a>
+      );
+    }
+    return <span key={i}>{part}</span>;
+  });
 }
 
 export default function ClientsPage() {
@@ -91,7 +93,6 @@ export default function ClientsPage() {
   async function handleDelete() {
     if (!clientToDelete) return;
     setIsDeleting(true);
-    // Soft delete — set active = false so they stay in analytics
     await supabase
       .from("clients")
       .update({ active: false })
@@ -118,7 +119,6 @@ export default function ClientsPage() {
         </button>
       </div>
 
-      {/* Stats */}
       <div className="clients-stats">
         <div className="clients-stat">
           <span className="clients-stat__value">{clients.length}</span>
@@ -134,7 +134,6 @@ export default function ClientsPage() {
         </div>
       </div>
 
-      {/* Search */}
       <div className="clients-search">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="clients-search__icon">
           <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -148,7 +147,6 @@ export default function ClientsPage() {
         />
       </div>
 
-      {/* Client Cards */}
       {loading ? (
         <div className="page-loading">Loading clients...</div>
       ) : filtered.length === 0 ? (
@@ -157,7 +155,6 @@ export default function ClientsPage() {
         <div className="clients-grid">
           {filtered.map((c) => (
             <div key={c.id} className="client-card card">
-              {/* Header */}
               <div className="client-card__header">
                 <div className="client-card__avatar">
                   {c.name.charAt(0).toUpperCase()}
@@ -178,7 +175,6 @@ export default function ClientsPage() {
                 </div>
               </div>
 
-              {/* Contact Info */}
               <div className="client-card__contact">
                 {c.email && (
                   <a href={`mailto:${c.email}`} className="client-card__contact-item">
@@ -200,7 +196,6 @@ export default function ClientsPage() {
                 )}
               </div>
 
-              {/* Notes */}
               {c.notes && (
                 <div className="client-card__notes">
                   {parseNotes(c.notes)}

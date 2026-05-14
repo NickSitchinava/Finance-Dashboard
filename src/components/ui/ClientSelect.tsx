@@ -37,6 +37,7 @@ export default function ClientSelect({
       const { data } = await supabase
         .from("clients")
         .select("id, name")
+        .eq("active", true)
         .order("name");
       if (data) {
         setClients(data);

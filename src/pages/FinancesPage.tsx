@@ -79,16 +79,12 @@ export default function FinancesPage() {
       const expArray = Object.keys(expCatMap)
         .map((cat, idx) => ({ name: cat, value: expCatMap[cat], color: COLORS[idx % COLORS.length] }))
         .filter((item) => item.value > 0);
-      setExpenseBreakdown(
-        expArray.length > 0 ? expArray : [{ name: "No Data", value: 1, color: "#2A2A35" }]
-      );
+      setExpenseBreakdown(expArray);
 
       const incArray = Object.keys(incCatMap)
         .map((cat, idx) => ({ name: cat, value: incCatMap[cat], color: COLORS[idx % COLORS.length] }))
         .filter((item) => item.value > 0);
-      setIncomeBreakdown(
-        incArray.length > 0 ? incArray : [{ name: "No Data", value: 1, color: "#2A2A35" }]
-      );
+      setIncomeBreakdown(incArray);
     }
     setLoading(false);
   }

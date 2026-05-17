@@ -51,7 +51,6 @@ export default function SettingsPage() {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [message, setMessage] = useState({ text: "", type: "" });
 
-  // Local form state — initialised from ProfileContext
   const [localName, setLocalName] = useState(fullName);
   const [bio, setBio] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -94,7 +93,6 @@ export default function SettingsPage() {
     }
   }, [user]);
 
-  // Keep local name in sync with context
   useEffect(() => {
     setLocalName(fullName);
   }, [fullName]);
@@ -128,18 +126,14 @@ export default function SettingsPage() {
     }
 
     const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(filePath);
-    // Add cache-busting timestamp so the browser loads the new image
     const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`;
 
-await supabase.from("profiles").upsert({
-  id: user.id,
-  avatar_url: publicUrl, // ✅ save cache-busting URL to DB too
-  updated_at: new Date().toISOString(),
-});
+    await supabase.from("profiles").upsert({
+      id: user.id,
+      avatar_url: publicUrl,
+      updated_at: new Date().toISOString(),
+    });
 
-setAvatarUrl(publicUrl);
-
-    // Update context so sidebar refreshes immediately
     setAvatarUrl(publicUrl);
     showMessage("Photo updated!", "success");
     setUploadingPhoto(false);
@@ -159,7 +153,7 @@ setAvatarUrl(publicUrl);
     if (error) {
       showMessage(error.message, "error");
     } else {
-      setFullName(localName); // update context so sidebar name refreshes
+      setFullName(localName);
       showMessage("Profile updated successfully!", "success");
     }
   }
@@ -364,6 +358,14 @@ setAvatarUrl(publicUrl);
                     <option value="EUR">EUR (€)</option>
                     <option value="GEL">GEL (₾)</option>
                   </select>
+                  <p style={{
+                    fontSize: '0.8rem',
+                    color: 'var(--text-secondary)',
+                    marginTop: '6px',
+                    lineHeight: '1.5',
+                  }}>
+                    Note: This only changes the currency symbol displayed across the dashboard. It does not convert or recalculate any of your existing amounts.
+                  </p>
                 </div>
 
                 <div className="toggle-group">

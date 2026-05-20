@@ -3,6 +3,7 @@ import StatCard from "../components/ui/StatCard";
 import IncomeExpenseBarChart from "../components/charts/IncomeExpenseBarChart";
 import PortfolioDonutChart from "../components/charts/PortfolioDonutChart";
 import TransactionsTable from "../components/tables/TransactionsTable";
+import type { Transaction } from "../components/tables/TransactionsTable";
 import AddTransactionModal from "../components/ui/AddTransactionModal";
 import ConfirmModal from "../components/ui/ConfirmModal";
 import { supabase } from "../lib/supabase";
@@ -15,10 +16,10 @@ const COLORS = ["#8A8A9A", "#E87B3A", "#4A4A56", "#D06A2E", "#3296FA", "#34C759"
 export default function FinancesPage() {
   const { user } = useAuth();
   const { format } = useCurrency();
-  const [transactions, setTransactions] = useState<any[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [transactionToEdit, setTransactionToEdit] = useState<any>(null);
-  const [transactionToDelete, setTransactionToDelete] = useState<any>(null);
+  const [transactionToDelete, setTransactionToDelete] = useState<Transaction | null>(null);
   const [loading, setLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -31,19 +32,24 @@ export default function FinancesPage() {
     setLoading(true);
     const { data } = await supabase
       .from("transactions")
-      .select("*, clients ( name )")
+      .select("*, clients(name)")
       .order("date", { ascending: false });
 
     if (data) {
-      const formatted = data.map((d) => ({
+      const formatted: Transaction[] = data.map((d) => ({
         id: d.id,
-        type: d.type,
-        amount: Number(d.amount),
         description: d.description,
         date: d.date,
-        category: d.category,
         client: d.clients?.name,
+        client_id: d.client_id,
+        income_amount: Number(d.income_amount) || (d.type === "Income" ? Number(d.amount) : 0),
+        expense_amount: Number(d.expense_amount) || (d.type === "Expense" ? Number(d.amount) : 0),
+        income_category: d.income_category || (d.type === "Income" ? d.category : undefined),
+        expense_category: d.expense_category || (d.type === "Expense" ? d.category : undefined),
+        income_notes: d.income_notes,
+        expense_notes: d.expense_notes,
       }));
+
       setTransactions(formatted);
 
       const monMap: Record<string, { income: number; expenses: number }> = {};
@@ -53,12 +59,16 @@ export default function FinancesPage() {
       formatted.forEach((t) => {
         const mStr = MONTHS[new Date(t.date).getUTCMonth()];
         if (!monMap[mStr]) monMap[mStr] = { income: 0, expenses: 0 };
-        if (t.type === "Income") {
-          monMap[mStr].income += t.amount;
-          incCatMap[t.category || "Other"] = (incCatMap[t.category || "Other"] || 0) + t.amount;
-        } else {
-          monMap[mStr].expenses += t.amount;
-          expCatMap[t.category || "Other"] = (expCatMap[t.category || "Other"] || 0) + t.amount;
+        monMap[mStr].income += t.income_amount;
+        monMap[mStr].expenses += t.expense_amount;
+
+        if (t.income_amount > 0) {
+          const cat = t.income_category || "Uncategorized";
+          incCatMap[cat] = (incCatMap[cat] || 0) + t.income_amount;
+        }
+        if (t.expense_amount > 0) {
+          const cat = t.expense_category || "Uncategorized";
+          expCatMap[cat] = (expCatMap[cat] || 0) + t.expense_amount;
         }
       });
 
@@ -68,23 +78,20 @@ export default function FinancesPage() {
         let mIndex = curMonth - i;
         if (mIndex < 0) mIndex += 12;
         const label = MONTHS[mIndex];
-        last6.push({
-          month: label,
-          income: monMap[label]?.income || 0,
-          expenses: monMap[label]?.expenses || 0,
-        });
+        last6.push({ month: label, income: monMap[label]?.income || 0, expenses: monMap[label]?.expenses || 0 });
       }
       setIncomeVsExpenses(last6);
 
-      const expArray = Object.keys(expCatMap)
-        .map((cat, idx) => ({ name: cat, value: expCatMap[cat], color: COLORS[idx % COLORS.length] }))
-        .filter((item) => item.value > 0);
-      setExpenseBreakdown(expArray);
-
-      const incArray = Object.keys(incCatMap)
-        .map((cat, idx) => ({ name: cat, value: incCatMap[cat], color: COLORS[idx % COLORS.length] }))
-        .filter((item) => item.value > 0);
-      setIncomeBreakdown(incArray);
+      setIncomeBreakdown(
+        Object.keys(incCatMap)
+          .map((cat, idx) => ({ name: cat, value: incCatMap[cat], color: COLORS[idx % COLORS.length] }))
+          .filter((item) => item.value > 0)
+      );
+      setExpenseBreakdown(
+        Object.keys(expCatMap)
+          .map((cat, idx) => ({ name: cat, value: expCatMap[cat], color: COLORS[idx % COLORS.length] }))
+          .filter((item) => item.value > 0)
+      );
     }
     setLoading(false);
   }
@@ -98,7 +105,7 @@ export default function FinancesPage() {
     fetchTransactions();
   }
 
-  function openEditModal(t: any) {
+  function openEditModal(t: Transaction) {
     setTransactionToEdit(t);
     setIsModalOpen(true);
   }
@@ -108,16 +115,10 @@ export default function FinancesPage() {
     setIsModalOpen(true);
   }
 
-  useEffect(() => {
-    fetchTransactions();
-  }, [user]);
+  useEffect(() => { fetchTransactions(); }, [user]);
 
-  const totalIncome = transactions
-    .filter((t) => t.type === "Income")
-    .reduce((sum, t) => sum + t.amount, 0);
-  const totalExpenses = transactions
-    .filter((t) => t.type === "Expense")
-    .reduce((sum, t) => sum + t.amount, 0);
+  const totalIncome = transactions.reduce((sum, t) => sum + t.income_amount, 0);
+  const totalExpenses = transactions.reduce((sum, t) => sum + t.expense_amount, 0);
   const netProfit = totalIncome - totalExpenses;
 
   const liveStats = [

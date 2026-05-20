@@ -39,7 +39,7 @@ export default function AnalyticsPage() {
         { data: projects },
       ] = await Promise.all([
         supabase.from("clients").select("*"),
-        supabase.from("transactions").select("*").eq("type", "Income"),
+        supabase.from("transactions").select("income_amount, amount, type, date, client_id"),
         supabase.from("projects").select("*, clients(name)"),
       ]);
 
@@ -48,25 +48,22 @@ export default function AnalyticsPage() {
         return;
       }
 
+      const getIncome = (t: any) =>
+        Number(t.income_amount) || (t.type === "Income" ? Number(t.amount) : 0);
+
       const ytdTransactions = transactions.filter(
         (t) => new Date(t.date) >= new Date(yearStart)
       );
-      const ytdRevenue = ytdTransactions.reduce(
-        (sum, t) => sum + Number(t.amount), 0
-      );
+      const ytdRevenue = ytdTransactions.reduce((sum, t) => sum + getIncome(t), 0);
+
       const ytdClientsCount = clients.filter(
         (c) => new Date(c.created_at) >= new Date(yearStart)
       ).length;
-      const completedProjects = projects.filter(
-        (p) => p.status === "Completed"
-      ).length;
-      const totalRevenue = transactions.reduce(
-        (sum, t) => sum + Number(t.amount), 0
-      );
+
+      const completedProjects = projects.filter((p) => p.status === "Completed").length;
+      const totalRevenue = transactions.reduce((sum, t) => sum + getIncome(t), 0);
       const avgProjValue =
-        completedProjects > 0
-          ? Math.round(totalRevenue / completedProjects)
-          : 0;
+        completedProjects > 0 ? Math.round(totalRevenue / completedProjects) : 0;
 
       setAnalyticsKPIs([
         { label: "YTD Revenue", value: format(ytdRevenue) },
@@ -78,8 +75,11 @@ export default function AnalyticsPage() {
       const clientMap: Record<string, number> = {};
 
       transactions.forEach((t) => {
-        const mStr = MONTHS[new Date(t.date).getUTCMonth()];
-        revMap[mStr] = (revMap[mStr] || 0) + Number(t.amount);
+        const inc = getIncome(t);
+        if (inc > 0) {
+          const mStr = MONTHS[new Date(t.date).getUTCMonth()];
+          revMap[mStr] = (revMap[mStr] || 0) + inc;
+        }
       });
 
       clients.forEach((c) => {
@@ -100,12 +100,8 @@ export default function AnalyticsPage() {
         });
       }
 
-      setRevenueAreaData(
-        last12.map((item) => ({ month: item.month, revenue: item.revenue }))
-      );
-      setNewClientsPerMonth(
-        last12.slice(6).map((item) => ({ month: item.month, clients: item.clients }))
-      );
+      setRevenueAreaData(last12.map((item) => ({ month: item.month, revenue: item.revenue })));
+      setNewClientsPerMonth(last12.slice(6).map((item) => ({ month: item.month, clients: item.clients })));
 
       const clientAgg: Record<string, any> = {};
       clients.forEach((c) => {
@@ -124,8 +120,9 @@ export default function AnalyticsPage() {
       });
 
       transactions.forEach((t) => {
-        if (t.client_id && clientAgg[t.client_id]) {
-          clientAgg[t.client_id].totalRevenue += Number(t.amount);
+        const inc = getIncome(t);
+        if (t.client_id && clientAgg[t.client_id] && inc > 0) {
+          clientAgg[t.client_id].totalRevenue += inc;
           if (new Date(t.date) > new Date(clientAgg[t.client_id].lastActive)) {
             clientAgg[t.client_id].lastActive = t.date;
           }

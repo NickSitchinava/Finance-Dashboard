@@ -8,9 +8,10 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: ReactNode;
+  maxWidth?: number;
 }
 
-export default function Modal({ isOpen, onClose, title, children }: ModalProps) {
+export default function Modal({ isOpen, onClose, title, children, maxWidth }: ModalProps) {
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -18,7 +19,7 @@ export default function Modal({ isOpen, onClose, title, children }: ModalProps) 
 
     if (isOpen) {
       document.addEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'hidden'; // Prevent background scrolling
+      document.body.style.overflow = 'hidden';
     }
 
     return () => {
@@ -31,7 +32,11 @@ export default function Modal({ isOpen, onClose, title, children }: ModalProps) 
 
   return createPortal(
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content card" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="modal-content card"
+        onClick={(e) => e.stopPropagation()}
+        style={maxWidth ? { maxWidth: `${maxWidth}px` } : undefined}
+      >
         <div className="modal-header">
           <h2 className="modal-title">{title}</h2>
           <button className="modal-close" onClick={onClose} aria-label="Close">

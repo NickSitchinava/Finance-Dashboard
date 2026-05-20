@@ -4,12 +4,16 @@ import "./TransactionsTable.css";
 
 export interface Transaction {
   id: string;
-  type: "Income" | "Expense";
-  amount: number;
   description: string;
   date: string;
-  category: string;
+  income_amount: number;
+  expense_amount: number;
+  income_category?: string;
+  expense_category?: string;
+  income_notes?: string;
+  expense_notes?: string;
   client?: string;
+  client_id?: string;
 }
 
 interface TransactionsTableProps {
@@ -18,7 +22,7 @@ interface TransactionsTableProps {
   onDelete?: (transaction: Transaction) => void;
 }
 
-type SortKey = keyof Transaction;
+type SortKey = "date" | "description" | "profit";
 type SortDir = "asc" | "desc";
 
 const PAGE_SIZE = 5;
@@ -37,6 +41,89 @@ const DeleteIcon = () => (
   </svg>
 );
 
+function InfoTooltip({
+  category,
+  notes,
+  color,
+}: {
+  category?: string;
+  notes?: string;
+  color: string;
+}) {
+  const [visible, setVisible] = useState(false);
+  const hasContent = category || notes;
+
+  return (
+    <div style={{ position: "relative", display: "inline-flex" }}>
+      <button
+        type="button"
+        onMouseEnter={() => setVisible(true)}
+        onMouseLeave={() => setVisible(false)}
+        style={{
+          width: "15px",
+          height: "15px",
+          borderRadius: "50%",
+          border: `1px solid ${color}`,
+          background: `${color}18`,
+          color,
+          fontSize: "0.6rem",
+          fontWeight: 700,
+          cursor: "help",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontFamily: "inherit",
+          flexShrink: 0,
+          lineHeight: 1,
+        }}
+      >
+        ?
+      </button>
+
+      {visible && (
+        <div
+          style={{
+            position: "absolute",
+            bottom: "calc(100% + 6px)",
+            right: 0,
+            background: "var(--bg-elevated)",
+            border: "1px solid var(--border)",
+            borderRadius: "8px",
+            padding: "10px 12px",
+            width: "200px",
+            zIndex: 1000,
+            boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+            fontSize: "0.8rem",
+            color: "var(--text-primary)",
+            lineHeight: 1.5,
+            pointerEvents: "none",
+          }}
+        >
+          {category && (
+            <div style={{ marginBottom: notes ? "8px" : 0 }}>
+              <div style={{ fontSize: "0.65rem", color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "2px" }}>
+                Category
+              </div>
+              <div style={{ fontWeight: 600, color }}>{category}</div>
+            </div>
+          )}
+          {notes && (
+            <div>
+              <div style={{ fontSize: "0.65rem", color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "2px" }}>
+                Notes
+              </div>
+              <div style={{ color: "var(--text-secondary)", whiteSpace: "pre-wrap" }}>{notes}</div>
+            </div>
+          )}
+          {!hasContent && (
+            <span style={{ color: "var(--text-secondary)" }}>No details added</span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function TransactionsTable({ data, onEdit, onDelete }: TransactionsTableProps) {
   const { symbol } = useCurrency();
   const [sortKey, setSortKey] = useState<SortKey>("date");
@@ -46,8 +133,15 @@ export default function TransactionsTable({ data, onEdit, onDelete }: Transactio
   const sorted = useMemo(() => {
     const copy = [...data];
     copy.sort((a, b) => {
-      const av = a[sortKey] || "";
-      const bv = b[sortKey] || "";
+      let av: string | number = "";
+      let bv: string | number = "";
+      if (sortKey === "profit") {
+        av = a.income_amount - a.expense_amount;
+        bv = b.income_amount - b.expense_amount;
+      } else {
+        av = a[sortKey] || "";
+        bv = b[sortKey] || "";
+      }
       if (av < bv) return sortDir === "asc" ? -1 : 1;
       if (av > bv) return sortDir === "asc" ? 1 : -1;
       return 0;
@@ -63,7 +157,7 @@ export default function TransactionsTable({ data, onEdit, onDelete }: Transactio
       setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     } else {
       setSortKey(key);
-      setSortDir("asc");
+      setSortDir(key === "date" ? "desc" : "asc");
     }
     setPage(0);
   }
@@ -82,49 +176,83 @@ export default function TransactionsTable({ data, onEdit, onDelete }: Transactio
             <tr>
               <th className="sortable-th" onClick={() => handleSort("date")}>Date {renderSortIcon("date")}</th>
               <th className="sortable-th" onClick={() => handleSort("description")}>Description {renderSortIcon("description")}</th>
-              <th className="sortable-th" onClick={() => handleSort("category")}>Category {renderSortIcon("category")}</th>
-              <th className="sortable-th" onClick={() => handleSort("amount")}>Amount {renderSortIcon("amount")}</th>
-              <th className="sortable-th" onClick={() => handleSort("type")}>Type {renderSortIcon("type")}</th>
+              <th>Amount</th>
+              <th className="sortable-th" onClick={() => handleSort("profit")}>Profit {renderSortIcon("profit")}</th>
               <th className="col-actions">Actions</th>
             </tr>
           </thead>
           <tbody>
             {pageData.length === 0 ? (
               <tr>
-                <td colSpan={6} className="td--empty">No transactions found.</td>
+                <td colSpan={5} className="td--empty">No transactions found.</td>
               </tr>
             ) : (
-              pageData.map((t) => (
-                <tr key={t.id}>
-                  <td className="td--secondary">{t.date}</td>
-                  <td>
-                    <span className="td--bold">{t.description}</span>
-                    {t.client && <div className="td--client">Client: {t.client}</div>}
-                  </td>
-                  <td className="td--secondary">{t.category}</td>
-                  <td className="td--amount">
-                    {symbol}{Number(t.amount).toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </td>
-                  <td>
-                    <span className={`badge ${t.type === "Income" ? "badge--paid" : "badge--overdue"}`}>
-                      {t.type}
-                    </span>
-                  </td>
-                  <td className="col-actions">
-                    <div className="table-actions">
-                      <button className="action-btn action-btn--edit" onClick={() => onEdit?.(t)} title="Edit">
-                        <EditIcon />
-                      </button>
-                      <button className="action-btn action-btn--delete" onClick={() => onDelete?.(t)} title="Delete">
-                        <DeleteIcon />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
+              pageData.map((t) => {
+                const profit = t.income_amount - t.expense_amount;
+                const profitColor = profit >= 0 ? "#34C759" : "#E05252";
+                const profitPrefix = profit > 0 ? "+" : "";
+
+                return (
+                  <tr key={t.id}>
+                    <td className="td--secondary">{t.date}</td>
+                    <td>
+                      <span style={{ fontWeight: 500 }}>{t.description}</span>
+                      {t.client && (
+                        <div className="td--client">Client: {t.client}</div>
+                      )}
+                    </td>
+
+                    <td>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+                        {t.income_amount > 0 && (
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                            <span style={{ fontSize: "1rem", fontWeight: 700, color: "#34C759" }}>
+                              {symbol}{t.income_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                            <InfoTooltip
+                              category={t.income_category}
+                              notes={t.income_notes}
+                              color="#34C759"
+                            />
+                          </div>
+                        )}
+                        {t.expense_amount > 0 && (
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                            <span style={{ fontSize: "0.8rem", fontWeight: 500, color: "#E05252" }}>
+                              -{symbol}{t.expense_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                            <InfoTooltip
+                              category={t.expense_category}
+                              notes={t.expense_notes}
+                              color="#E05252"
+                            />
+                          </div>
+                        )}
+                        {t.income_amount === 0 && t.expense_amount === 0 && (
+                          <span style={{ color: "var(--text-secondary)" }}>—</span>
+                        )}
+                      </div>
+                    </td>
+
+                    <td>
+                      <span style={{ fontWeight: 600, color: profitColor }}>
+                        {profitPrefix}{symbol}{Math.abs(profit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </td>
+
+                    <td className="col-actions">
+                      <div className="table-actions">
+                        <button className="action-btn action-btn--edit" onClick={() => onEdit?.(t)} title="Edit">
+                          <EditIcon />
+                        </button>
+                        <button className="action-btn action-btn--delete" onClick={() => onDelete?.(t)} title="Delete">
+                          <DeleteIcon />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>

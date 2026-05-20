@@ -104,11 +104,15 @@ export default function OverviewPage() {
       const [{ data: allProj }, { data: allTrans }, { data: allClients }] =
         await Promise.all([
           supabase.from("projects").select("status, hours_logged"),
-          supabase.from("transactions").select("amount, date, category").eq("type", "Income"),
+          supabase.from("transactions").select("income_amount, expense_amount, amount, type, date"),
           supabase.from("clients").select("id", { count: "exact" }),
         ]);
 
-      const totalRev = allTrans?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
+      const totalRev = allTrans?.reduce((sum, t) => {
+        const inc = Number(t.income_amount) || (t.type === "Income" ? Number(t.amount) : 0);
+        return sum + inc;
+      }, 0) || 0;
+
       const totalHours = allProj?.reduce((sum, p) => sum + Number(p.hours_logged), 0) || 0;
       const avgRate = totalHours > 0 ? Math.round(totalRev / totalHours) : 0;
       const completedProj = allProj?.filter((p) => p.status === "Completed").length || 0;
@@ -125,8 +129,11 @@ export default function OverviewPage() {
       if (allTrans) {
         const monthlyMap: Record<string, number> = {};
         allTrans.forEach((t) => {
-          const monthStr = MONTHS[new Date(t.date).getUTCMonth()];
-          monthlyMap[monthStr] = (monthlyMap[monthStr] || 0) + Number(t.amount);
+          const inc = Number(t.income_amount) || (t.type === "Income" ? Number(t.amount) : 0);
+          if (inc > 0) {
+            const monthStr = MONTHS[new Date(t.date).getUTCMonth()];
+            monthlyMap[monthStr] = (monthlyMap[monthStr] || 0) + inc;
+          }
         });
 
         const curMonth = new Date().getUTCMonth();

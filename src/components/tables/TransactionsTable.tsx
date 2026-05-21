@@ -42,16 +42,13 @@ const DeleteIcon = () => (
 );
 
 function InfoTooltip({
-  category,
   notes,
   color,
 }: {
-  category?: string;
   notes?: string;
   color: string;
 }) {
   const [visible, setVisible] = useState(false);
-  const hasContent = category || notes;
 
   return (
     <div style={{ position: "relative", display: "inline-flex" }}>
@@ -99,24 +96,10 @@ function InfoTooltip({
             pointerEvents: "none",
           }}
         >
-          {category && (
-            <div style={{ marginBottom: notes ? "8px" : 0 }}>
-              <div style={{ fontSize: "0.65rem", color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "2px" }}>
-                Category
-              </div>
-              <div style={{ fontWeight: 600, color }}>{category}</div>
-            </div>
-          )}
-          {notes && (
-            <div>
-              <div style={{ fontSize: "0.65rem", color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "2px" }}>
-                Notes
-              </div>
-              <div style={{ color: "var(--text-secondary)", whiteSpace: "pre-wrap" }}>{notes}</div>
-            </div>
-          )}
-          {!hasContent && (
-            <span style={{ color: "var(--text-secondary)" }}>No details added</span>
+          {notes ? (
+            <div style={{ color: "var(--text-secondary)", whiteSpace: "pre-wrap" }}>{notes}</div>
+          ) : (
+            <span style={{ color: "var(--text-secondary)" }}>No notes added</span>
           )}
         </div>
       )}
@@ -209,11 +192,7 @@ export default function TransactionsTable({ data, onEdit, onDelete }: Transactio
                             <span style={{ fontSize: "1rem", fontWeight: 700, color: "#34C759" }}>
                               {symbol}{t.income_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </span>
-                            <InfoTooltip
-                              category={t.income_category}
-                              notes={t.income_notes}
-                              color="#34C759"
-                            />
+                            <InfoTooltip notes={t.income_notes} color="#34C759" />
                           </div>
                         )}
                         {t.expense_amount > 0 && (
@@ -221,11 +200,7 @@ export default function TransactionsTable({ data, onEdit, onDelete }: Transactio
                             <span style={{ fontSize: "0.8rem", fontWeight: 500, color: "#E05252" }}>
                               -{symbol}{t.expense_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </span>
-                            <InfoTooltip
-                              category={t.expense_category}
-                              notes={t.expense_notes}
-                              color="#E05252"
-                            />
+                            <InfoTooltip notes={t.expense_notes} color="#E05252" />
                           </div>
                         )}
                         {t.income_amount === 0 && t.expense_amount === 0 && (

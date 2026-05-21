@@ -15,7 +15,6 @@ function getIntensity(count: number): string {
 }
 
 export default function GitHubHeatmap({ commits, totalCommits, streak }: GitHubHeatmapProps) {
-  // Arrange 30 days into rows of 7 (like a calendar grid)
   const rows = 5;
   const cols = 7;
 

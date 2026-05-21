@@ -47,7 +47,7 @@ export default function InvoicesPage() {
         dueDate: d.due_date,
         status: d.status,
         client_id: d.client_id,
-        description: d.description || "", // add this line
+        description: d.description || "",
       }));
       setInvoices(formatted);
 

@@ -4,8 +4,6 @@ import { useAuth } from './AuthProvider';
 export default function AuthGuard() {
   const { session, loading } = useAuth();
 
-  // If the URL hash contains a recovery token, send to reset page immediately
-  // before AuthProvider has a chance to process the session
   if (typeof window !== 'undefined') {
     const hash = window.location.hash;
     if (hash.includes('type=recovery')) {

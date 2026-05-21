@@ -365,7 +365,7 @@
 /* Backdrop */
 .topbar__backdrop {
    position: fixed;
-  top: var(--topbar-height); /* start below topbar */
+  top: var(--topbar-height); 
   left: 0;
   width: 100vw;
   height: 100vh;

@@ -90,7 +90,6 @@ export default function TopBar({ onToggleChat }: TopBarProps) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const notifRef = useRef<HTMLDivElement>(null);
 
-  // Load dismissed IDs from localStorage
   function getDismissed(): string[] {
     try {
       return JSON.parse(localStorage.getItem(DISMISSED_KEY) || "[]");

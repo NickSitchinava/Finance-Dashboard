@@ -16,7 +16,6 @@
   padding: 28px 32px;
 }
 
-/* Overlay — always in DOM on mobile when open */
 .app-layout__overlay {
   position: fixed;
   inset: 0;

@@ -66,12 +66,10 @@ html.light-mode {
   max-width: 800px;
 }
 
-/* ── Message Alert ────────────────────────────── */
 .settings-message {
   margin-bottom: 24px;
 }
 
-/* ── Section & Card ───────────────────────────── */
 .settings-section {
   display: flex;
   flex-direction: column;
@@ -104,7 +102,6 @@ html.light-mode {
   margin: 0 0 24px;
 }
 
-/* ── Profile Upload ───────────────────────────── */
 .profile-upload {
   display: flex;
   align-items: center;
@@ -158,7 +155,6 @@ html.light-mode {
   margin: 8px 0 0;
 }
 
-/* ── Utilities ────────────────────────────────── */
 .input--disabled {
   opacity: 0.6;
   cursor: not-allowed;
@@ -173,7 +169,6 @@ html.light-mode {
   white-space: nowrap;
 }
 
-/* ── Toggle Groups ────────────────────────────── */
 .toggle-group {
   display: flex;
   align-items: center;
@@ -202,7 +197,6 @@ html.light-mode {
   color: var(--text-secondary);
 }
 
-/* ── Notifications Section ────────────────────── */
 .notifications-section {
   margin-top: 24px;
 }
@@ -214,12 +208,10 @@ html.light-mode {
   margin: 0 0 8px;
 }
 
-/* ── Save Button ──────────────────────────────── */
 .settings-save-btn {
   margin-top: 24px;
 }
 
-/* ── Toggle Switch ────────────────────────────── */
 .switch {
   position: relative;
   display: inline-block;
@@ -263,13 +255,11 @@ input:checked + .slider:before {
   transform: translateX(20px);
 }
 
-/* ── Small button variant ─────────────────────── */
 .btn--sm {
   padding: 6px 14px;
   font-size: 0.8125rem;
 }
 
-/* ── Responsive ───────────────────────────────── */
 @media (max-width: 768px) {
   .settings-page {
     flex-direction: column;

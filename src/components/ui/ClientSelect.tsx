@@ -72,7 +72,6 @@ export default function ClientSelect({
     }
   }
 
-  // When no value selected, the select itself gets a muted style
   const selectStyle: React.CSSProperties = !value && !isAdding
     ? { color: "var(--text-secondary)" }
     : {};

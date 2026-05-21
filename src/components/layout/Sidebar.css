@@ -33,8 +33,8 @@
   font-size: 1rem;
   flex-shrink: 0;
   overflow: hidden;
-  padding: 0;        /* add this */
-  line-height: 1;    /* add this */
+  padding: 0;        
+  line-height: 1;    
 }
 
 .sidebar__profile-info {
@@ -159,7 +159,7 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: 0;  /* let overflow:hidden handle the clipping */
+  border-radius: 0;  
   display: block;
   flex-shrink: 0;
 }

@@ -1,14 +1,19 @@
 import { useState, useEffect } from "react";
 import Modal from "./Modal";
 import ConfirmModal from "./ConfirmModal";
+import CategoryCombobox from "./CategoryCombobox";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../auth/AuthProvider";
+import type { ClientCategory } from "../../hooks/useCategoryAssignments";
 
 interface AddClientModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSaved: () => void;
   clientToEdit?: any | null;
+  allCategories: ClientCategory[];
+  initialSelectedCategories?: ClientCategory[];
+  onSaveAssignments: (clientId: string, categoryIds: string[]) => Promise<boolean>;
 }
 
 export default function AddClientModal({
@@ -16,6 +21,9 @@ export default function AddClientModal({
   onClose,
   onSaved,
   clientToEdit,
+  allCategories,
+  initialSelectedCategories = [],
+  onSaveAssignments,
 }: AddClientModalProps) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
@@ -27,6 +35,7 @@ export default function AddClientModal({
   const [mobile, setMobile] = useState("");
   const [address, setAddress] = useState("");
   const [notes, setNotes] = useState("");
+  const [selectedCategories, setSelectedCategories] = useState<ClientCategory[]>([]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -36,16 +45,24 @@ export default function AddClientModal({
       setMobile(clientToEdit.mobile || "");
       setAddress(clientToEdit.address || "");
       setNotes(clientToEdit.notes || "");
+      setSelectedCategories(initialSelectedCategories);
     } else {
       setName("");
       setEmail("");
       setMobile("");
       setAddress("");
       setNotes("");
+      setSelectedCategories([]);
     }
     setErrorMsg("");
     setShowConfirm(false);
   }, [isOpen, clientToEdit]);
+
+  useEffect(() => {
+    if (isOpen && clientToEdit) {
+      setSelectedCategories(initialSelectedCategories);
+    }
+  }, [initialSelectedCategories]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -76,6 +93,8 @@ export default function AddClientModal({
         active: true,
       };
 
+      let clientId = clientToEdit?.id;
+
       if (clientToEdit) {
         const { error } = await supabase
           .from("clients")
@@ -83,11 +102,16 @@ export default function AddClientModal({
           .eq("id", clientToEdit.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from("clients")
-          .insert([payload]);
+          .insert([payload])
+          .select()
+          .single();
         if (error) throw error;
+        clientId = data.id;
       }
+
+      await onSaveAssignments(clientId, selectedCategories.map((c) => c.id));
 
       await onSaved();
       onClose();
@@ -159,6 +183,12 @@ export default function AddClientModal({
             onChange={(e) => setNotes(e.target.value)}
           />
         </div>
+
+        <CategoryCombobox
+          categories={allCategories}
+          selected={selectedCategories}
+          onChange={setSelectedCategories}
+        />
 
         <div className="modal-actions">
           <button type="button" className="btn btn--outline" onClick={onClose} disabled={loading}>

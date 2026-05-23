@@ -1,8 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import AddClientModal from "../components/ui/AddClientModal";
 import ConfirmModal from "../components/ui/ConfirmModal";
+import CategoryFilter from "../components/ui/CategoryFilter";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../components/auth/AuthProvider";
+import { useCategoryAssignments } from "../hooks/useCategoryAssignments";
 import "./ClientsPage.css";
 
 interface Client {
@@ -75,6 +77,14 @@ export default function ClientsPage() {
   const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [search, setSearch] = useState("");
+  const [filterCategoryIds, setFilterCategoryIds] = useState<string[]>([]);
+
+  const {
+    categories,
+    fetchAll: fetchCategories,
+    saveAssignmentsForClient,
+    getCategoriesForClient,
+  } = useCategoryAssignments();
 
   async function fetchClients() {
     if (!user) return;
@@ -88,15 +98,16 @@ export default function ClientsPage() {
     setLoading(false);
   }
 
-  useEffect(() => { fetchClients(); }, [user]);
+  async function refresh() {
+    await Promise.all([fetchClients(), fetchCategories()]);
+  }
+
+  useEffect(() => { refresh(); }, [user]);
 
   async function handleDelete() {
     if (!clientToDelete) return;
     setIsDeleting(true);
-    await supabase
-      .from("clients")
-      .update({ active: false })
-      .eq("id", clientToDelete.id);
+    await supabase.from("clients").update({ active: false }).eq("id", clientToDelete.id);
     setIsDeleting(false);
     setClientToDelete(null);
     fetchClients();
@@ -105,11 +116,25 @@ export default function ClientsPage() {
   function openAdd() { setClientToEdit(null); setIsModalOpen(true); }
   function openEdit(c: Client) { setClientToEdit(c); setIsModalOpen(true); }
 
-  const filtered = clients.filter((c) =>
-    c.name.toLowerCase().includes(search.toLowerCase()) ||
-    c.email?.toLowerCase().includes(search.toLowerCase()) ||
-    c.mobile?.includes(search)
-  );
+  const filtered = useMemo(() => {
+    return clients.filter((c) => {
+      const matchesSearch =
+        c.name.toLowerCase().includes(search.toLowerCase()) ||
+        c.email?.toLowerCase().includes(search.toLowerCase()) ||
+        c.mobile?.includes(search);
+
+      if (!matchesSearch) return false;
+
+      if (filterCategoryIds.length === 0) return true;
+
+      const clientCatIds = getCategoriesForClient(c.id).map((cat) => cat.id);
+      return filterCategoryIds.every((id) => clientCatIds.includes(id));
+    });
+  }, [clients, search, filterCategoryIds, getCategoriesForClient]);
+
+  const initialSelectedCategories = clientToEdit
+    ? getCategoriesForClient(clientToEdit.id)
+    : [];
 
   return (
     <div className="page">
@@ -125,92 +150,125 @@ export default function ClientsPage() {
           <span className="clients-stat__label">Total Clients</span>
         </div>
         <div className="clients-stat clients-stat--accent">
-          <span className="clients-stat__value">{clients.filter(c => c.email).length}</span>
+          <span className="clients-stat__value">{clients.filter((c) => c.email).length}</span>
           <span className="clients-stat__label">With Email</span>
         </div>
         <div className="clients-stat clients-stat--success">
-          <span className="clients-stat__value">{clients.filter(c => c.mobile).length}</span>
+          <span className="clients-stat__value">{clients.filter((c) => c.mobile).length}</span>
           <span className="clients-stat__label">With Mobile</span>
         </div>
       </div>
 
-      <div className="clients-search">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="clients-search__icon">
-          <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-        </svg>
-        <input
-          type="text"
-          placeholder="Search clients..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="clients-search__input"
+      <div className="clients-toolbar">
+        <div className="clients-search">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="clients-search__icon">
+            <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input
+            type="text"
+            placeholder="Search clients..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="clients-search__input"
+          />
+        </div>
+
+        <CategoryFilter
+          categories={categories}
+          selected={filterCategoryIds}
+          onChange={setFilterCategoryIds}
         />
       </div>
 
       {loading ? (
         <div className="page-loading">Loading clients...</div>
       ) : filtered.length === 0 ? (
-        <div className="page-loading">{search ? "No clients match your search." : "No clients yet. Add one above!"}</div>
+        <div className="page-loading">
+          {search || filterCategoryIds.length > 0
+            ? "No clients match your filters."
+            : "No clients yet. Add one above!"}
+        </div>
       ) : (
         <div className="clients-grid">
-          {filtered.map((c) => (
-            <div key={c.id} className="client-card card">
-              <div className="client-card__header">
-                <div className="client-card__avatar">
-                  {c.name.charAt(0).toUpperCase()}
+          {filtered.map((c) => {
+            const clientCategories = getCategoriesForClient(c.id);
+            return (
+              <div key={c.id} className="client-card card">
+                <div className="client-card__header">
+                  <div className="client-card__avatar">
+                    {c.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="client-card__info">
+                    <h3 className="client-card__name">{c.name}</h3>
+                    <span className="client-card__since">
+                      Since {new Date(c.created_at).toLocaleDateString([], { month: "short", year: "numeric" })}
+                    </span>
+                  </div>
+                  <div className="client-card__actions">
+                    <button className="action-btn action-btn--edit" onClick={() => openEdit(c)} title="Edit">
+                      <EditIcon />
+                    </button>
+                    <button className="action-btn action-btn--delete" onClick={() => setClientToDelete(c)} title="Delete">
+                      <DeleteIcon />
+                    </button>
+                  </div>
                 </div>
-                <div className="client-card__info">
-                  <h3 className="client-card__name">{c.name}</h3>
-                  <span className="client-card__since">
-                    Since {new Date(c.created_at).toLocaleDateString([], { month: "short", year: "numeric" })}
-                  </span>
-                </div>
-                <div className="client-card__actions">
-                  <button className="action-btn action-btn--edit" onClick={() => openEdit(c)} title="Edit">
-                    <EditIcon />
-                  </button>
-                  <button className="action-btn action-btn--delete" onClick={() => setClientToDelete(c)} title="Delete">
-                    <DeleteIcon />
-                  </button>
-                </div>
-              </div>
 
-              <div className="client-card__contact">
-                {c.email && (
-                  <a href={`mailto:${c.email}`} className="client-card__contact-item">
-                    <MailIcon />
-                    <span>{c.email}</span>
-                  </a>
+                {clientCategories.length > 0 && (
+                  <div className="client-card__categories">
+                    {clientCategories.map((cat) => (
+                      <span
+                        key={cat.id}
+                        className="client-card__cat-chip"
+                        style={{ borderColor: cat.color, color: cat.color, background: `${cat.color}18` }}
+                      >
+                        <span className="client-card__cat-dot" style={{ background: cat.color }} />
+                        {cat.name}
+                      </span>
+                    ))}
+                  </div>
                 )}
-                {c.mobile && (
-                  <a href={`tel:${c.mobile}`} className="client-card__contact-item">
-                    <PhoneIcon />
-                    <span>{c.mobile}</span>
-                  </a>
-                )}
-                {c.address && (
-                  <div className="client-card__contact-item">
-                    <PinIcon />
-                    <span>{c.address}</span>
+
+                <div className="client-card__contact">
+                  {c.email && (
+                    <a href={`mailto:${c.email}`} className="client-card__contact-item">
+                      <MailIcon />
+                      <span>{c.email}</span>
+                    </a>
+                  )}
+                  {c.mobile && (
+                    <a href={`tel:${c.mobile}`} className="client-card__contact-item">
+                      <PhoneIcon />
+                      <span>{c.mobile}</span>
+                    </a>
+                  )}
+                  {c.address && (
+                    <div className="client-card__contact-item">
+                      <PinIcon />
+                      <span>{c.address}</span>
+                    </div>
+                  )}
+                </div>
+
+                {c.notes && (
+                  <div className="client-card__notes">
+                    {parseNotes(c.notes)}
                   </div>
                 )}
               </div>
-
-              {c.notes && (
-                <div className="client-card__notes">
-                  {parseNotes(c.notes)}
-                </div>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
       <AddClientModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onSaved={fetchClients}
+        onSaved={refresh}
         clientToEdit={clientToEdit}
+        allCategories={categories}
+        initialSelectedCategories={initialSelectedCategories}
+        onSaveAssignments={saveAssignmentsForClient}
       />
 
       <ConfirmModal

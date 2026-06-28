@@ -1,73 +1,70 @@
-# React + TypeScript + Vite
+# F-Dash
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A personal dashboard for freelance web development work — track finances, clients, projects, invoices, and goals all in one place.
 
-Currently, two official plugins are available:
+**Live app:** [f-dash.vercel.app](https://f-dash.vercel.app)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Tech Stack
 
-## React Compiler
+- **React 19** + **TypeScript**
+- **Vite** — build tool and dev server
+- **Supabase** — auth, Postgres database (with Row Level Security), and file storage
+- **React Router v7** — routing
+- **Recharts** — charts and data visualization
+- **Vercel** — deployment
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Features
 
-## Expanding the ESLint configuration
+- **Overview** — revenue trends, active projects, and GitHub activity at a glance
+- **Finances** — income/expense tracking with category breakdowns
+- **Clients** — client management with custom categories and tagging
+- **Projects** — tech stack, progress, hours logged, and linked repos/sites
+- **Invoices** — invoice creation, status tracking, and payment history
+- **Analytics** — YTD revenue, top clients, and client acquisition trends
+- **Goals** — goals and milestones with progress tracking
+- **Settings** — profile, security, currency (USD/EUR/GEL), theme, and category management
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Getting Started
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### Prerequisites
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+- Node.js
+- A Supabase project (URL + anon key)
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### Installation
+
+```bash
+git clone <repo-url>
+cd nick-dashboard
+npm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### Running locally
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm run dev
 ```
+
+### Other scripts
+
+```bash
+npm run build      # type-check and build for production
+npm run lint        # run ESLint
+npm run preview     # preview the production build
+```
+
+## Test Account
+
+Use the credentials below to log in and explore the dashboard with sample data:
+
+| Field    | Value                       |
+|----------|-----------------------------|
+| Email    | `nicksitchinava@gmail.com`  |
+| Password | `Nick2009!`                 |
+
+> For testing purposes only — please don't change the account details.
+
+## Notes
+
+- Soft deletes are used for clients (`active = false`) to preserve referential integrity in analytics.
+- Currency settings only change the displayed symbol; they don't convert existing amounts.

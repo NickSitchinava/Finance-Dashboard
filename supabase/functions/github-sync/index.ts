@@ -496,6 +496,13 @@ Deno.serve(async (request) => {
     allowedOrigins.add(devOrigin.includes("localhost")
       ? devOrigin.replace("localhost", "127.0.0.1")
       : devOrigin.replace("127.0.0.1", "localhost"));
+    // Vite is currently running F-Dash on both its default and fallback ports.
+    if (/:(?:5173|5174)$/.test(devOrigin)) {
+      for (const port of [5173, 5174]) {
+        allowedOrigins.add(`http://localhost:${port}`);
+        allowedOrigins.add(`http://127.0.0.1:${port}`);
+      }
+    }
   }
   if (origin && allowedOrigins.has(origin))
     response.headers.set("Access-Control-Allow-Origin", origin);

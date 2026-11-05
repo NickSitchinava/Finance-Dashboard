@@ -1,0 +1,10 @@
+[functions.github-sync]
+verify_jwt = true
+
+# GitHub authenticates delivery with X-Hub-Signature-256 inside the handler.
+[functions.github-webhook]
+verify_jwt = false
+
+# Protected by GITHUB_RECONCILE_SECRET inside the handler.
+[functions.github-reconcile]
+verify_jwt = false

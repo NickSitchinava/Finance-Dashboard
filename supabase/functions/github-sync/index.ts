@@ -490,7 +490,15 @@ async function handle(request: Request) {
 Deno.serve(async (request) => {
   const response = await handle(request);
   const origin = request.headers.get("Origin");
-  if (origin && [Deno.env.get("FDASH_APP_ORIGIN"), Deno.env.get("FDASH_DEV_ORIGIN")].includes(origin))
+  const devOrigin = Deno.env.get("FDASH_DEV_ORIGIN");
+  const allowedOrigins = new Set([Deno.env.get("FDASH_APP_ORIGIN"), devOrigin]);
+  if (devOrigin && /^http:\/\/(?:localhost|127\.0\.0\.1):\d+$/.test(devOrigin)) {
+    allowedOrigins.add(devOrigin.includes("localhost")
+      ? devOrigin.replace("localhost", "127.0.0.1")
+      : devOrigin.replace("127.0.0.1", "localhost"));
+  }
+  if (origin && allowedOrigins.has(origin))
     response.headers.set("Access-Control-Allow-Origin", origin);
   return response;
 });
+

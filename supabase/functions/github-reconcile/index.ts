@@ -99,7 +99,7 @@ Deno.serve(async (request) => {
           if (pulls.length < 100 || pulls.every((pr) => pr.updated_at < from)) break;
         }
         await saveEvents(events);
-        await admin
+        const { error: updateError } = await admin
           .from("github_repositories")
           .update({
             state: "connected",
@@ -108,10 +108,15 @@ Deno.serve(async (request) => {
             last_error: null,
           })
           .eq("id", repo.id);
+        if (updateError) throw updateError;
         updated++;
       } catch (error) {
         failed++;
-        await admin
+        console.error("github-reconcile repository failed", {
+          repository_id: repo.id,
+          error: error instanceof Error ? error.message : "unknown",
+        });
+        const { error: statusError } = await admin
           .from("github_repositories")
           .update({
             state: "error",
@@ -119,11 +124,13 @@ Deno.serve(async (request) => {
               error instanceof Error ? error.message.slice(0, 250) : "Reconciliation failed",
           })
           .eq("id", repo.id);
+        if (statusError) console.error("github-reconcile status update failed", statusError.message);
       }
     }
-    return reply({ updated, failed });
+    return reply({ updated, failed }, failed ? 503 : 200);
   } catch (error) {
     console.error("github-reconcile failed", error instanceof Error ? error.message : "unknown");
     return fail("Reconciliation failed.", 500);
   }
 });
+

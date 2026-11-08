@@ -1,4 +1,8 @@
 
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
 :root {
   --bg-base:      #16161a;
   --bg-surface:   #1c1c22;
@@ -12,7 +16,6 @@
   --status-overdue: #e05252;
   --status-success: #34c759;
 
-  --sidebar-width: 220px;
   --topbar-height: 60px;
   --card-padding: 22px;
   --card-radius: 8px;
@@ -288,12 +291,6 @@ img {
   .page__row--3 {
     grid-template-columns: 1fr;
   }
-
-  .sidebar {
-    position: fixed;
-    transform: translateX(-100%);
-    z-index: 100;
-  }
 }
 
 /* Action Icons */
@@ -324,16 +321,6 @@ img {
   color: var(--status-overdue);
 }
 
-.auth-loading {
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-  background: var(--bg-base);
-}
-
 .auth-loading__spinner {
   width: 36px;
   height: 36px;
@@ -341,12 +328,6 @@ img {
   border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
-}
-
-.auth-loading__text {
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-  letter-spacing: 0.03em;
 }
 
 @keyframes spin {

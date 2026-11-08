@@ -43,7 +43,7 @@ export default function CategoryCombobox({
 
   return (
     <div className="form-group">
-      <label>Categories <span style={{ opacity: 0.5, fontWeight: 400, fontSize: "0.75rem" }}>(optional)</span></label>
+      <label>Industry Categories <span style={{ opacity: 0.5, fontWeight: 400, fontSize: "0.75rem" }}>(optional)</span></label>
 
       {selected.length > 0 && (
         <div className="cat-chips">
@@ -70,7 +70,7 @@ export default function CategoryCombobox({
       <div ref={containerRef} style={{ position: "relative" }}>
         <input
           type="text"
-          placeholder={categories.length === 0 ? "No categories yet — create them in Settings" : "Search categories..."}
+          placeholder={categories.length === 0 ? "No Industry Categories yet — create them in Settings" : "Search industries..."}
           value={query}
           onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
@@ -81,7 +81,7 @@ export default function CategoryCombobox({
         {open && (filtered.length > 0 || query.length > 0) && (
           <div className="cat-dropdown">
             {filtered.length === 0 ? (
-              <div className="cat-dropdown__empty">No matching categories</div>
+              <div className="cat-dropdown__empty">No matching industries</div>
             ) : (
               filtered.map((cat) => (
                 <button

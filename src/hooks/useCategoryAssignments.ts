@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../components/auth/AuthProvider";
 
@@ -84,16 +84,18 @@ export function useCategoryAssignments() {
     const toRemove = existing.filter((a) => !categoryIds.includes(a.category_id));
 
     if (toRemove.length > 0) {
-      await supabase
+      const { error } = await supabase
         .from("client_category_assignments")
         .delete()
         .in("id", toRemove.map((a) => a.id));
+      if (error) return false;
     }
 
     if (toAdd.length > 0) {
-      await supabase
+      const { error } = await supabase
         .from("client_category_assignments")
         .insert(toAdd.map((category_id) => ({ client_id: clientId, category_id })));
+      if (error) { await fetchAll(); return false; }
     }
 
     setAssignments((prev) => {
@@ -128,8 +130,10 @@ export function useCategoryAssignments() {
     [assignments]
   );
 
+  const fetchAllRef = useRef(fetchAll);
+  useEffect(() => { fetchAllRef.current = fetchAll; });
   useEffect(() => {
-    fetchAll();
+    queueMicrotask(() => { void fetchAllRef.current(); });
   }, [user]);
 
   return {

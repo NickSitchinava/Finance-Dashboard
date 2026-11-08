@@ -1,0 +1,26 @@
+name: Reconcile F-Dash GitHub activity
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check configuration
+        env:
+          RECONCILE_SECRET: ${{ secrets.FDASH_RECONCILE_SECRET }}
+        run: |
+          if [ -z "$RECONCILE_SECRET" ]; then
+            echo 'FDASH_RECONCILE_SECRET is not configured.' >&2
+            exit 1
+          fi
+      - name: Reconcile connected repositories
+        env:
+          RECONCILE_SECRET: ${{ secrets.FDASH_RECONCILE_SECRET }}
+        run: |
+          curl --fail-with-body --retry 3 --request POST \
+            --url 'https://pdifdrvgjbxplsbkrruu.supabase.co/functions/v1/github-reconcile' \
+            --header "x-reconcile-secret: $RECONCILE_SECRET" \
+            --header 'Content-Type: application/json' \
+            --data '{}'

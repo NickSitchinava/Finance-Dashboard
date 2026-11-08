@@ -1,25 +1,23 @@
-import { useState } from "react";
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./components/auth/AuthProvider";
 import { ProfileProvider } from "./components/auth/ProfileContext";
 import AuthGuard from "./components/auth/AuthGuard";
 import AppLayout from "./components/layout/AppLayout";
-import ChatbotButton from "./components/ui/ChatbotButton";
+import { DashboardRouteSkeleton } from "./components/layout/DashboardSkeleton";
 import OverviewPage from "./pages/OverviewPage";
-import FinancesPage from "./pages/FinancesPage";
 import ProjectsPage from "./pages/ProjectsPage";
-import AnalyticsPage from "./pages/AnalyticsPage";
 import GoalsPage from "./pages/GoalsPage";
 import InvoicesPage from "./pages/InvoicesPage";
-import ClientsPage from "./pages/ClientsPage";
+import ClientsPage from "./pages/ClientsWorkspace";
 import SettingsPage from "./pages/SettingsPage";
 import LoginPage from "./pages/LoginPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 
-export default function App() {
-  const [isChatOpen, setIsChatOpen] = useState(false);
-  const toggleChat = () => setIsChatOpen((prev) => !prev);
+const FinancesPage = lazy(() => import("./pages/FinancesPage"));
+const AnalyticsPage = lazy(() => import("./pages/AnalyticsPage"));
 
+export default function App() {
   return (
     <AuthProvider>
       <ProfileProvider>
@@ -28,14 +26,14 @@ export default function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
 
-            <Route element={<AuthGuard />}>
-              <Route element={<AppLayout toggleChat={toggleChat} />}>
+            <Route element={<AppLayout />}>
+              <Route element={<AuthGuard />}>
                 <Route path="/" element={<OverviewPage />} />
-                <Route path="/finances" element={<FinancesPage />} />
+                <Route path="/finances" element={<Suspense fallback={<DashboardRouteSkeleton route="/finances" />}><FinancesPage /></Suspense>} />
                 <Route path="/projects" element={<ProjectsPage />} />
                 <Route path="/clients" element={<ClientsPage />} />
                 <Route path="/invoices" element={<InvoicesPage />} />
-                <Route path="/analytics" element={<AnalyticsPage />} />
+                <Route path="/analytics" element={<Suspense fallback={<DashboardRouteSkeleton route="/analytics" />}><AnalyticsPage /></Suspense>} />
                 <Route path="/goals" element={<GoalsPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
               </Route>
@@ -43,10 +41,6 @@ export default function App() {
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-          <ChatbotButton
-            isOpen={isChatOpen}
-            onClose={() => setIsChatOpen(false)}
-          />
         </BrowserRouter>
       </ProfileProvider>
     </AuthProvider>

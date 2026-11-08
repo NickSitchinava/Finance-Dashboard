@@ -1,141 +1,208 @@
-import { useState, useEffect } from "react";
-import StatCard from "../components/ui/StatCard";
-import ClientPaymentsTable from "../components/tables/ClientPaymentsTable";
-import type { ClientPayment } from "../components/tables/ClientPaymentsTable";
-import AddInvoiceModal from "../components/ui/AddInvoiceModal";
-import ConfirmModal from "../components/ui/ConfirmModal";
-import { supabase } from "../lib/supabase";
-import { useAuth } from "../components/auth/AuthProvider";
-import { useCurrency } from "../hooks/useCurrency";
+import {useCallback,useEffect,useRef,useState} from 'react';
+import {createPortal} from 'react-dom';
+import {AnimatePresence} from 'motion/react';
+import {useSearchParams} from 'react-router-dom';
+import {ArrowDown,ArrowUp,Check,ChevronRight,Download,FileText,Filter,Plus,Trash2,X} from 'lucide-react';
+import {Seek} from '../components/ui/Seek';
+import '../components/ui/Seek.css';
+import {supabase} from '../lib/supabase';
+import {useAuth} from '../components/auth/AuthProvider';
+import {useCurrency} from '../hooks/useCurrency';
+import ConfirmModal from '../components/ui/ConfirmModal';
+import FuseButton from '../components/ui/FuseButton';
+import RubberSegment from '../components/ui/RubberSegment';
+import DashboardMetricCard from '../components/ui/DashboardMetricCard';
+import DashboardContentTransition from '../components/ui/DashboardContentTransition';
+import AnimatedMetricValue from '../components/ui/AnimatedMetricValue';
+import { dashboardSnapshot, saveDashboardSnapshot } from '../lib/dashboardCache';
+import SwipeToast from '../components/ui/SwipeToast';
+import {Signature} from '../components/ui/Signature';
+import {InvoiceDocument} from '../components/ui/InvoiceDocument';
+import type {InvoiceDocumentData} from '../components/ui/InvoiceDocument';
+import type {Pt} from '../components/ui/Signature';
+import {normalizeSignature} from '../lib/invoiceSignature';
+import type {InvoiceSignature} from '../lib/invoiceSignature';
+import '../components/ui/Signature.css';
+import {cents,dateLabel,daysFromToday,downloadBlob,downloadInvoicePdf,invoiceCsv,invoiceMoney,localDay,viewInvoice} from '../lib/invoices';
+import type {Invoice,InvoiceItem,InvoicePayment,InvoiceView} from '../lib/invoices';
+import type {Currency} from '../lib/finance';
+import './InvoicesPage.css';
 
-export default function InvoicesPage() {
-  const { user } = useAuth();
-  const { format } = useCurrency();
-  const [invoices, setInvoices] = useState<ClientPayment[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [invoiceToEdit, setInvoiceToEdit] = useState<ClientPayment | null>(null);
-  const [itemToDelete, setItemToDelete] = useState<ClientPayment | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
+type Named={id:string;name:string;email?:string|null;address?:string|null;client_id?:string|null};
+type Recurrence={id:string;template_invoice_id:string;frequency:string;next_on:string;state:string};
+type InvoiceSnapshot={rows:InvoiceView[];clients:Named[];projects:Named[];schedules:Recurrence[];profileName:string};
+type ConfirmAction={title:string;message:string;confirmText:string;action:()=>Promise<void>;onCancel?:()=>void};
+type SortKey='client'|'number'|'amount'|'remaining'|'due'|'status'|'created';
+const tabs=['All','Archived','Draft','Partial','Paid','Overdue'] as const;
+const currencies:Currency[]=['GEL','USD','EUR'];
+const emptyFilters={client:'',currency:'',from:'',to:'',min:'',max:''};
+const badge=(i:InvoiceView)=>i.condition==='Awaiting Payment'?'awaiting':i.condition.toLowerCase();
+const dueText=(i:InvoiceView)=>{const days=daysFromToday(i.due_date);return days<0?`${-days}d overdue`:days===0?'Due today':days===1?'Due tomorrow':`Due in ${days}d`};
+const initials=(name:string)=>name.split(/\s+/).slice(0,2).map(x=>x[0]).join('').toUpperCase()||'?';
+async function allInvoiceRows(table:'invoices'|'invoice_line_items'|'invoice_payments',userId:string){
+ const rows:Record<string,unknown>[]=[];
+ for(let start=0;;start+=500){
+  const {data,error}=await supabase.from(table).select('*').eq('user_id',userId).order('id').range(start,start+499);
+  if(error)return {data:null,error};
+  rows.push(...(data||[]));
+  if(!data||data.length<500)return {data:rows,error:null};
+ }
+}
+function nextOccurrence(date:string,frequency:string){
+ const d=new Date(`${date}T12:00:00Z`);const day=d.getUTCDate();
+ if(frequency==='weekly')d.setUTCDate(day+7);
+ else{const months=frequency==='monthly'?1:frequency==='quarterly'?3:12;const target=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+months,1,12));const last=new Date(Date.UTC(target.getUTCFullYear(),target.getUTCMonth()+1,0,12)).getUTCDate();target.setUTCDate(Math.min(day,last));return target.toISOString().slice(0,10)}
+ return d.toISOString().slice(0,10);
+}
 
-  const [kpis, setKpis] = useState([
-    { label: "Total Invoiced", value: format(0) },
-    { label: "Outstanding", value: format(0) },
-    { label: "Paid to Date", value: format(0) },
+function Dialog({children,onClose,label,wide=false}:{children:React.ReactNode;onClose:()=>void;label:string;wide?:boolean}){
+  const ref=useRef<HTMLDivElement>(null);const previous=useRef<HTMLElement|null>(null);
+  const closeRef=useRef(onClose);
+  useEffect(()=>{closeRef.current=onClose},[onClose]);
+  useEffect(()=>{previous.current=document.activeElement as HTMLElement;const old=document.body.style.overflow;document.body.style.overflow='hidden';const timer=window.setTimeout(()=>ref.current?.querySelector<HTMLElement>('button,input,select,textarea')?.focus(),20);
+    const key=(e:KeyboardEvent)=>{const dialogs=document.querySelectorAll('[role="dialog"]');if(dialogs[dialogs.length-1]!==ref.current)return;if(e.key==='Escape'){e.stopPropagation();closeRef.current()}if(e.key==='Tab'&&ref.current){const list=[...ref.current.querySelectorAll<HTMLElement>('button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),a[href]')];if(!list.length)return;const first=list[0],last=list[list.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}}};document.addEventListener('keydown',key);return()=>{window.clearTimeout(timer);document.removeEventListener('keydown',key);document.body.style.overflow=old;previous.current?.focus()}},[]);
+  return createPortal(<div className="invoice-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)onClose()}}><div ref={ref} className={`invoice-dialog${wide?' invoice-dialog--wide':''}`} role="dialog" aria-modal="true" aria-label={label}>{children}</div></div>,document.body);
+}
+function CurrencyTotal({rows,field,emptyCurrency}:{rows:InvoiceView[];field:(i:InvoiceView)=>number;emptyCurrency:Currency}){const groups=currencies.map(currency=>({currency,total:rows.filter(i=>i.currency===currency).reduce((n,i)=>n+field(i),0)})).filter(x=>x.total!==0);return <>{groups.length?groups.map(g=><span key={g.currency}><AnimatedMetricValue value={invoiceMoney(g.total,g.currency)} fit/></span>):<span><AnimatedMetricValue value={invoiceMoney(0,emptyCurrency)} fit/></span>}{rows.some(i=>!i.currency&&field(i)!==0)&&<small>+ unresolved currency</small>}</>}
+function Detail({invoice,onClose,onEdit,onPayment,onDuplicate,onArchive,onRestore,onConfirmDelete,onDelete,onReverse,onDownload,schedule,onSchedule,onCancelSchedule}:{invoice:InvoiceView;onClose:()=>void;onEdit:()=>void;onPayment:()=>void;onDuplicate:()=>void;onArchive:()=>Promise<boolean>;onRestore:()=>Promise<boolean>;onConfirmDelete:()=>Promise<boolean>;onDelete:()=>Promise<void>;onReverse:(p:InvoicePayment)=>void;onDownload:()=>void;schedule?:Recurrence;onSchedule:()=>void;onCancelSchedule:()=>void}){
+ const [archiveArmed,setArchiveArmed]=useState(false);const [undoPending,setUndoPending]=useState(false);const [fuseKey,setFuseKey]=useState(0);const archivePromise=useRef<Promise<boolean>>(Promise.resolve(false));
+ const commitArchive=()=>{setArchiveArmed(true);archivePromise.current=onArchive().then(ok=>{if(!ok){setArchiveArmed(false);setFuseKey(value=>value+1)}return ok})};
+ const undoArchive=()=>{setUndoPending(true);void archivePromise.current.then(async ok=>{if(ok)await onRestore()}).finally(()=>{setUndoPending(false);setArchiveArmed(false)})};
+ return <Dialog onClose={onClose} label={`Invoice ${invoice.invoice_number}`} wide><header className="invoice-dialog__head"><div><span className="invoice-overline">Invoice details</span><h2>{invoice.invoice_number.startsWith('DRAFT-')?'Draft invoice':invoice.invoice_number}</h2><p>{invoice.client_name} · {invoice.project_name||'No linked project'}</p></div><button className="invoice-icon" onClick={onClose} aria-label="Close"><X size={18}/></button></header>
+ <div className="invoice-detail-grid"><section><div className="invoice-detail-meta"><div><span>Issued</span><strong>{dateLabel(invoice.issue_date)}</strong></div><div><span>Due</span><strong>{dateLabel(invoice.due_date)}</strong></div><div><span>Status</span><strong className={`invoice-badge invoice-badge--${badge(invoice)}`}>{invoice.condition}{invoice.overdue&&invoice.condition==='Partial'?' · overdue':''}</strong></div></div>
+ <h3>Recipient</h3><p>{invoice.recipient_snapshot.name||invoice.client_name}{invoice.recipient_snapshot.email&&<><br/>{invoice.recipient_snapshot.email}</>}{invoice.recipient_snapshot.address&&<><br/>{invoice.recipient_snapshot.address}</>}</p>
+ <h3>Line items</h3><div className="invoice-detail-items">{invoice.items.length?invoice.items.map(item=><div key={item.id}><span>{item.description}<small>{item.quantity} × {invoiceMoney(cents(item.unit_rate),invoice.currency)}</small></span><strong>{invoiceMoney(cents(item.quantity*item.unit_rate),invoice.currency)}</strong></div>):<p>{invoice.description||'No line items saved for this legacy invoice.'}</p>}</div>
+ {invoice.payment_terms&&<><h3>Payment terms</h3><p>{invoice.payment_terms}</p></>}{invoice.notes&&<><h3>Notes</h3><p>{invoice.notes}</p></>}</section><aside className="invoice-detail-side"><span className="invoice-overline">Payment summary</span><div><span>Invoice total</span><strong>{invoiceMoney(cents(invoice.amount),invoice.currency)}</strong></div><div><span>Paid to date</span><strong>{invoiceMoney(invoice.paidCents,invoice.currency)}</strong></div><div className="is-remaining"><span>Remaining</span><strong>{invoiceMoney(invoice.remainingCents,invoice.currency)}</strong></div><h3>Payment history</h3>{invoice.payments.length?invoice.payments.map(p=><div className={`invoice-payment-history${p.reversed_at?' is-reversed':''}`} key={p.id}><div><strong>{invoiceMoney(cents(p.amount),p.currency)}</strong><small>{dateLabel(p.paid_on)}{p.method?` · ${p.method}`:''}{p.reversed_at?' · reversed':''}</small>{p.note&&<small>{p.note}</small>}</div>{!p.reversed_at&&<button onClick={()=>onReverse(p)}>Reverse</button>}</div>):<p>No payments recorded yet.</p>}{schedule&&<div className="invoice-schedule-note">Repeats {schedule.frequency} · next {dateLabel(schedule.next_on)}{schedule.state!=='cancelled'&&<><button onClick={onSchedule}>{schedule.state==='active'?'Pause':'Resume'}</button><button onClick={onCancelSchedule}>Cancel recurrence</button></>}{schedule.state==='cancelled'&&<span>Canceled</span>}</div>}</aside></div>
+ <footer className="invoice-dialog__actions"><button className="invoice-secondary" onClick={onEdit}>Edit</button>{invoice.lifecycle_state==='issued'&&invoice.remainingCents>0&&!invoice.archived_at&&<button className="invoice-primary" onClick={onPayment}>Record payment</button>}<button className="invoice-secondary" onClick={onDownload}><Download size={14}/> PDF</button><button className="invoice-secondary" onClick={onDuplicate}>Duplicate</button>{invoice.archived_at&&!archiveArmed?<button className="invoice-secondary" onClick={()=>void onRestore()}>Restore</button>:<FuseButton key={fuseKey} label="Archive" undoLabel="Undo" color="#382100" background="#f5a524" fuseColor="#713e00" size="md" radius={22} undoWindow={4000} fuseThickness={1.5} crossfadeMs={200} pauseOnHover disabled={undoPending} onCommit={commitArchive} onUndo={undoArchive} onFuseEnd={()=>{void archivePromise.current.then(()=>setArchiveArmed(false))}}/>}<FuseButton label="Delete" undoLabel="Undo" icon={<Trash2 size={15} aria-hidden="true"/>} color="#fff" background="#ba3444" fuseColor="#ffd0d5" size="md" radius={22} undoWindow={4000} fuseThickness={1.5} crossfadeMs={200} pauseOnHover armedStatus="Deletion pending. Undo available." beforeCommit={onConfirmDelete} onFuseEnd={()=>{void onDelete()}}/></footer></Dialog>
+}
+function PaymentForm({invoice,onClose,onSaved,onError}:{invoice:InvoiceView;onClose:()=>void;onSaved:()=>void;onError:(message:string)=>void}){
+ const [amount,setAmount]=useState((invoice.remainingCents/100).toFixed(2));const [date,setDate]=useState(localDay());const [method,setMethod]=useState('');const [reference,setReference]=useState('');const [note,setNote]=useState('');const [busy,setBusy]=useState(false);const [error,setError]=useState('');const key=useRef(crypto.randomUUID());
+ const submit=async(e:React.FormEvent)=>{e.preventDefault();if(!invoice.currency){setError('Assign the original invoice currency before recording payment.');return}if(cents(amount)<=0||cents(amount)>invoice.remainingCents){setError('Enter an amount above zero and no more than the remaining balance.');return}setBusy(true);setError('');const {error:saveError}=await supabase.rpc('record_invoice_payment',{p_invoice_id:invoice.id,p_amount:Number(amount),p_currency:invoice.currency,p_paid_on:date,p_note:note||null,p_method:method||null,p_reference:reference||null,p_key:key.current});setBusy(false);if(saveError){setError(saveError.message);onError(saveError.message);return}window.dispatchEvent(new Event('invoice-updated'));onSaved()};
+ return <Dialog onClose={onClose} label="Record payment"><form onSubmit={submit} className="invoice-form"><header className="invoice-dialog__head"><div><span className="invoice-overline">Payment received</span><h2>Record payment</h2><p>{invoice.invoice_number} · {invoice.client_name}</p></div><button type="button" className="invoice-icon" onClick={onClose}><X size={18}/></button></header><div className="invoice-payment-remaining">Remaining balance <strong>{invoiceMoney(invoice.remainingCents,invoice.currency)}</strong></div><div className="invoice-form-row"><label>Amount received<input required type="number" min="0.01" step="0.01" value={amount} onChange={e=>setAmount(e.target.value)}/></label><label>Payment date<input required type="date" value={date} onChange={e=>setDate(e.target.value)}/></label></div><label>Currency<select value={invoice.currency||''} disabled><option>{invoice.currency||'Unknown'}</option></select></label><div className="invoice-form-row"><label>Method (optional)<input value={method} onChange={e=>setMethod(e.target.value)} placeholder="Bank transfer"/></label><label>Reference (optional)<input value={reference} onChange={e=>setReference(e.target.value)}/></label></div><label>Note (optional)<textarea value={note} onChange={e=>setNote(e.target.value)} rows={2}/></label>{error&&<p className="invoice-error" role="alert">{error}</p>}<footer className="invoice-dialog__actions"><button type="button" className="invoice-secondary" onClick={onClose}>Cancel</button><button type="submit" className="invoice-primary" disabled={busy}>{busy?'Recording…':'Record payment'}</button></footer></form></Dialog>
+}
+type DraftItem={key:string;description:string;quantity:string;rate:string};
+function SignatureSlot({strokes,onChange}:{strokes?:Pt[][];onChange:(strokes:Pt[][]|null)=>void}){
+ const slot=useRef<HTMLDivElement>(null);const [width,setWidth]=useState(300);const [height,setHeight]=useState(()=>window.innerHeight);
+ useEffect(()=>{const node=slot.current;if(!node)return;const observer=new ResizeObserver(entries=>setWidth(entries[0].contentRect.width));observer.observe(node);return()=>observer.disconnect()},[]);
+ useEffect(()=>{const resize=()=>setHeight(window.innerHeight);window.addEventListener('resize',resize);return()=>window.removeEventListener('resize',resize)},[]);
+ const scale=Math.min(1,width/300,height<=450?.48:height<=600?.78:1);
+ return <div ref={slot} className="invoice-signature-slot" style={{height:180*scale}}><div style={{transform:`scale(${scale})`,transformOrigin:'top left'}}><Signature pen={40} smooth={50} ink="Black" rewind={50} corner={20} initialStrokes={strokes} onChange={onChange}/></div></div>;
+}
+function Editor({invoice,clients,projects,profileName,userId,defaultCurrency,onClose,onSaved,onError}:{invoice:InvoiceView|null;clients:Named[];projects:Named[];profileName:string;userId:string;defaultCurrency:Currency;onClose:()=>void;onSaved:(message:string)=>void;onError:(message:string)=>void}){
+ const [clientId,setClientId]=useState(invoice?.client_id||'');const [clientName,setClientName]=useState(invoice?.client_name||'');const [recipientEmail,setRecipientEmail]=useState(invoice?.recipient_snapshot.email||'');const [recipientAddress,setRecipientAddress]=useState(invoice?.recipient_snapshot.address||'');const [projectId,setProjectId]=useState(invoice?.project_id||'');const [currency,setCurrency]=useState<Currency>(invoice?.currency||defaultCurrency);const [issueDate,setIssueDate]=useState(invoice?.issue_date||invoice?.created_at?.slice(0,10)||localDay());const [dueDate,setDueDate]=useState(invoice?.due_date||localDay());const [description,setDescription]=useState(invoice?.description||'');const [terms,setTerms]=useState(invoice?.payment_terms||'');const [notes,setNotes]=useState(invoice?.notes||'');const identity=invoice?.issuer_snapshot.kind||'personal';const [issuerName,setIssuerName]=useState(invoice?.issuer_snapshot.name||profileName);const [issuerEmail,setIssuerEmail]=useState(invoice?.issuer_snapshot.email||'');const issuerAddress=invoice?.issuer_snapshot.address||'';const [items,setItems]=useState<DraftItem[]>(invoice?.items.length?invoice.items.map(x=>({key:x.id,description:x.description,quantity:String(x.quantity),rate:String(x.unit_rate)})):[{key:crypto.randomUUID(),description:'',quantity:'1',rate:''}]);const [repeat,setRepeat]=useState('none');const [repeatEnd,setRepeatEnd]=useState('');const [repeatMax,setRepeatMax]=useState('');const [step,setStep]=useState(0);const [saveState,setSaveState]=useState('Unsaved');const [error,setError]=useState('');const [busy,setBusy]=useState(false);const [closeConfirm,setCloseConfirm]=useState(false);const [signature,setSignature]=useState<InvoiceSignature|null>(()=>normalizeSignature(invoice?.signature));const onSignatureChange=useCallback((strokes:Pt[][]|null)=>setSignature(strokes?{version:1,strokes}:null),[]);
+ const id=useRef(invoice?.id||'');const serial=useRef(Promise.resolve());const changed=useRef(0);const saved=useRef(0);const initialized=useRef(false);
+ const previewRef=useRef<HTMLDivElement>(null);const previewReady=useRef(false);
+ useEffect(()=>{if(!previewReady.current){previewReady.current=true;return}if(signature&&previewRef.current)previewRef.current.scrollTop=previewRef.current.scrollHeight},[signature]);
+ const totalCents=items.reduce((sum,item)=>sum+cents(Number(item.quantity||0)*Number(item.rate||0)),0);
+ const valid=Boolean(clientName.trim()&&dueDate&&issueDate&&dueDate>=issueDate&&totalCents>0&&items.every(i=>i.description.trim()&&Number(i.quantity)>0&&Number(i.rate)>=0)&&totalCents>=(invoice?.paidCents||0));
+ const payload=()=>({user_id:userId,client_id:clientId||null,client_name:clientName.trim(),project_id:projectId||null,invoice_number:invoice?.invoice_number||`DRAFT-${crypto.randomUUID()}`,amount:totalCents/100,currency,due_date:dueDate,issue_date:issueDate,status:invoice?.status||'Pending',description:description||null,notes:notes||null,payment_terms:terms||null,recipient_snapshot:{name:clientName.trim(),email:recipientEmail,address:recipientAddress},issuer_snapshot:{kind:identity,name:issuerName,email:issuerEmail,address:issuerAddress},signature,lifecycle_state:invoice?.lifecycle_state||'draft',updated_at:new Date().toISOString()});
+ const save=async()=>{if(!valid)throw new Error('Complete the recipient, dates and line items before saving.');const snapshot=payload();const itemSnapshot=items.map(item=>({description:item.description.trim(),quantity:Number(item.quantity),unit_rate:Number(item.rate)}));const version=changed.current;setSaveState('Saving…');serial.current=serial.current.catch(()=>{}).then(async()=>{const {data,error:e}=await supabase.rpc('save_invoice_document',{p_invoice_id:id.current||null,p_document:snapshot,p_items:itemSnapshot});if(e)throw e;id.current=data.id;saved.current=version;setSaveState(changed.current===version?'Saved':'Unsaved')});return serial.current};
+ const saveRef=useRef(save);saveRef.current=save;
+ useEffect(()=>{if(!initialized.current){initialized.current=true;return}changed.current++;setSaveState('Unsaved');if(!valid||invoice?.lifecycle_state==='issued')return;const timer=window.setTimeout(()=>{void saveRef.current().catch(e=>{setError(e.message);onError(e.message);setSaveState('Save failed')})},900);return()=>window.clearTimeout(timer)},[clientId,clientName,recipientEmail,recipientAddress,projectId,currency,issueDate,dueDate,description,terms,notes,identity,issuerName,issuerEmail,issuerAddress,items,signature,valid,invoice?.lifecycle_state,onError]);
+ const finishClose=async()=>{try{await serial.current}catch{/* preserve last confirmed state */}onClose();window.dispatchEvent(new Event('invoice-updated'))};
+ const close=()=>{if(changed.current!==saved.current&&saveState!=='Saved'){setCloseConfirm(true);return}void finishClose()};
+ const submit=async(activate:boolean)=>{setBusy(true);setError('');try{await save();if(activate){const {error:e}=await supabase.rpc('activate_invoice',{p_invoice_id:id.current});if(e)throw e}if(repeat!=='none'&&id.current){const {error:e}=await supabase.from('invoice_recurrences').insert({user_id:userId,template_invoice_id:id.current,frequency:repeat,next_on:nextOccurrence(dueDate,repeat),anchor_day:Number(dueDate.slice(8,10)),end_on:repeatEnd||null,max_occurrences:repeatMax?Number(repeatMax):null});if(e)throw e}window.dispatchEvent(new Event('invoice-updated'));onSaved(activate?'Invoice activated.':invoice?.lifecycle_state==='issued'?'Invoice updated.':'Draft saved.')}catch(e){const message=e instanceof Error?e.message:'Could not save invoice.';setError(message);onError(message);setSaveState('Save failed')}finally{setBusy(false)}};
+ const updateItem=(key:string,field:keyof DraftItem,value:string)=>setItems(prev=>prev.map(x=>x.key===key?{...x,[field]:value}:x));
+ const renderActions=(placement:string)=><footer className={`invoice-dialog__actions invoice-editor-actions ${placement}`}><span className="invoice-save-state" role="status">{saveState}</span><button className="invoice-secondary" onClick={close}>Close</button><button className="invoice-secondary" disabled={busy||!valid} onClick={()=>void submit(false)}>Save {invoice?.lifecycle_state==='issued'?'changes':'draft'}</button>{(!invoice||invoice.lifecycle_state==='draft')&&<button className="invoice-primary" disabled={busy||!valid} onClick={()=>void submit(true)}>{busy?'Saving…':'Activate invoice'}</button>}</footer>;
+ const documentData:InvoiceDocumentData={
+  number:invoice?.invoice_number&&!invoice.invoice_number.startsWith('DRAFT-')?invoice.invoice_number:'Number assigned on activation',
+  from:{name:issuerName||'Your name',email:issuerEmail,address:issuerAddress},
+  to:{name:clientName||'Recipient name',email:recipientEmail,address:recipientAddress},
+  issued:dateLabel(issueDate),due:dateLabel(dueDate),
+  items:items.map(item=>({key:item.key,description:item.description||'Item description',detail:`${item.quantity||0} × ${invoiceMoney(cents(item.rate||0),currency)}`,amount:invoiceMoney(cents(Number(item.quantity||0)*Number(item.rate||0)),currency)})),
+  total:invoiceMoney(totalCents,currency),
+  paid:invoice?.paidCents?invoiceMoney(invoice.paidCents,currency):undefined,
+  remaining:invoice?.paidCents?invoiceMoney(Math.max(0,totalCents-invoice.paidCents),currency):undefined,
+  description,terms,signature,
+ };
+
+ return <><Dialog onClose={close} label={invoice?'Edit invoice':'New invoice'} wide><header className="invoice-dialog__head invoice-editor-head"><div><span className="invoice-overline">Invoice editor</span><h2>{invoice?'Edit invoice':'Create invoice'}</h2></div><button className="invoice-icon" onClick={close} aria-label="Close"><X size={18}/></button></header><nav className="invoice-mobile-steps" aria-label="Editor steps"><span>Step {step+1} of 4 · {['People','Details','Items','Review'][step]}</span><div><button disabled={step===0} onClick={()=>setStep(s=>s-1)}>Back</button><button disabled={step===3} onClick={()=>setStep(s=>s+1)}>Next</button></div></nav><div className="invoice-editor-grid" data-step={step}><div className="invoice-form"><section className="invoice-editor-section"><h3>Issuing identity</h3><div className="invoice-form-row"><label>Display name<input value={issuerName} onChange={e=>setIssuerName(e.target.value)} placeholder="Your name or agency"/></label><label>Email<input type="email" value={issuerEmail} onChange={e=>setIssuerEmail(e.target.value)}/></label></div></section>
+ <section className="invoice-editor-section"><h3>Recipient and project</h3><label>Existing client<select value={clientId} onChange={e=>{const c=clients.find(x=>x.id===e.target.value);setClientId(e.target.value);if(c){setClientName(c.name);setRecipientEmail(c.email||'');setRecipientAddress(c.address||'')}else setClientName('');setProjectId('')}}><option value="">Manual recipient</option>{clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label><div className="invoice-form-row"><label>Recipient name<input required value={clientName} onChange={e=>setClientName(e.target.value)}/></label><label>Email (optional)<input type="email" value={recipientEmail} onChange={e=>setRecipientEmail(e.target.value)}/></label></div><label>Linked project<select value={projectId} onChange={e=>setProjectId(e.target.value)}><option value="">No project</option>{projects.filter(p=>!clientId||!p.client_id||p.client_id===clientId).map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label></section>
+ <section className="invoice-editor-section"><h3>Dates and currency</h3><div className="invoice-form-row"><label>Invoice date<input type="date" value={issueDate} onChange={e=>setIssueDate(e.target.value)}/></label><label>Due date<input type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)}/></label></div>{dueDate<issueDate&&<p className="invoice-error">Due date must be on or after the invoice date.</p>}<label>Currency<select value={currency} disabled={Boolean(invoice?.paidCents)} onChange={e=>setCurrency(e.target.value as Currency)}>{currencies.map(c=><option key={c}>{c}</option>)}</select></label>{Boolean(invoice?.paidCents)&&<p className="invoice-field-note">Reverse recorded payments before changing currency.</p>}</section>
+ <section className="invoice-editor-section"><div className="invoice-section-title"><h3>Line items</h3><button className="invoice-text-button" onClick={()=>setItems(p=>[...p,{key:crypto.randomUUID(),description:'',quantity:'1',rate:''}])}><Plus size={14}/> Add item</button></div>{items.map((item,index)=><div className="invoice-item-editor" key={item.key}><input aria-label={`Item ${index+1} description`} placeholder="Service or deliverable" value={item.description} onChange={e=>updateItem(item.key,'description',e.target.value)}/><input aria-label="Quantity" type="number" min="0.001" step="0.001" value={item.quantity} onChange={e=>updateItem(item.key,'quantity',e.target.value)}/><input aria-label="Rate" type="number" min="0" step="0.01" value={item.rate} onChange={e=>updateItem(item.key,'rate',e.target.value)}/><button className="invoice-icon" disabled={items.length===1} onClick={()=>setItems(p=>p.filter(x=>x.key!==item.key))} aria-label="Remove line item"><X size={14}/></button></div>)}</section>
+ <section className="invoice-editor-section"><h3>Additional details</h3><label>Description<input value={description} onChange={e=>setDescription(e.target.value)}/></label><label>Payment terms<textarea rows={2} value={terms} onChange={e=>setTerms(e.target.value)}/></label><label>Notes (private)<textarea rows={2} value={notes} onChange={e=>setNotes(e.target.value)}/></label>{!invoice&&<><label>Repeat<select value={repeat} onChange={e=>setRepeat(e.target.value)}><option value="none">Does not repeat</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="yearly">Yearly</option></select></label>{repeat!=='none'&&<div className="invoice-form-row"><label>End date (optional)<input type="date" min={nextOccurrence(dueDate,repeat)} value={repeatEnd} onChange={e=>setRepeatEnd(e.target.value)}/></label><label>Maximum drafts<input type="number" min="1" step="1" value={repeatMax} onChange={e=>setRepeatMax(e.target.value)}/></label></div>}</>}</section></div>
+ <aside className="invoice-preview-wrap"><span className="invoice-overline">Live preview</span><InvoiceDocument data={documentData} documentRef={previewRef}/><div className="invoice-signature-section"><span className="invoice-overline">Signature</span><SignatureSlot strokes={signature?.strokes} onChange={onSignatureChange}/></div>{renderActions("invoice-editor-actions--desktop")}</aside></div>{error&&<p className="invoice-error" role="alert">{error} <button onClick={()=>void submit(false)}>Retry</button></p>}{renderActions("invoice-editor-actions--mobile")}</Dialog><ConfirmModal isOpen={closeConfirm} onClose={()=>setCloseConfirm(false)} title="You have unsaved changes" message="Close the editor without saving your latest changes?" confirmText="Close editor" cancelText="Keep editing" onConfirm={()=>{setCloseConfirm(false);void finishClose()}} confirmVariant="danger"/></>
+}
+
+export default function InvoicesPage(){
+ const filterButtonRef=useRef<HTMLButtonElement>(null);const filterSheetRef=useRef<HTMLDivElement>(null);
+ const {user}=useAuth();const cached=dashboardSnapshot<InvoiceSnapshot>((user?.id??'')+'|invoices');const {currency:preferredCurrency}=useCurrency();const [params,setParams]=useSearchParams();const [rows,setRows]=useState<InvoiceView[]>(()=>cached?.rows??[]);const [clients,setClients]=useState<Named[]>(()=>cached?.clients??[]);const [projects,setProjects]=useState<Named[]>(()=>cached?.projects??[]);const [schedules,setSchedules]=useState<Recurrence[]>(()=>cached?.schedules??[]);const [profileName,setProfileName]=useState(()=>cached?.profileName??'');const [loading,setLoading]=useState(()=>!cached);const [refreshing,setRefreshing]=useState(false);const [error,setErrorState]=useState('');const [errorSequence,setErrorSequence]=useState(0);const [notice,setNoticeState]=useState('');const [noticeSequence,setNoticeSequence]=useState(0);const [confirm,setConfirm]=useState<ConfirmAction|null>(null);const [confirmBusy,setConfirmBusy]=useState(false);const [tab,setTab]=useState<(typeof tabs)[number]>('All');const [query,setQuery]=useState('');const [search,setSearch]=useState('');const [filters,setFilters]=useState(emptyFilters);const [filtersOpen,setFiltersOpen]=useState(false);const [sort,setSort]=useState<SortKey>('due');const [ascending,setAscending]=useState(true);const [selected,setSelected]=useState<string[]>([]);const [detail,setDetail]=useState<string|null>(null);const [editor,setEditor]=useState<InvoiceView|null|false>(false);const [payment,setPayment]=useState<string|null>(null);const [attentionAll,setAttentionAll]=useState(false);const loadedRef=useRef(Boolean(cached));const fetchSequence=useRef(0);const lastUserId=useRef(user?.id??'');
+ const setError=useCallback((message:string)=>{setErrorState(message);if(message)setErrorSequence(value=>value+1)},[]);
+ const setNotice=useCallback((message:string)=>{setNoticeState(message);if(message)setNoticeSequence(value=>value+1)},[]);
+ const fetchData=useCallback(async()=>{
+  if(!user)return;
+  if(lastUserId.current!==user.id){lastUserId.current=user.id;loadedRef.current=false;setRows([])}
+  const sequence=++fetchSequence.current;
+  if(!loadedRef.current)setLoading(true);else setRefreshing(true);
+  setError('');
+  const results=await Promise.all([
+   allInvoiceRows('invoices',user.id),allInvoiceRows('invoice_line_items',user.id),allInvoiceRows('invoice_payments',user.id),
+   supabase.from('clients').select('id,name,email,address').eq('user_id',user.id).order('name'),
+   supabase.from('projects').select('id,name,client_id').eq('user_id',user.id).order('name'),
+   supabase.from('invoice_recurrences').select('*').eq('user_id',user.id),
+   supabase.from('profiles').select('full_name').eq('id',user.id).maybeSingle()
   ]);
-
-  async function fetchInvoices() {
-    if (!user) return;
-    setLoading(true);
-    const { data, error } = await supabase
-      .from("invoices")
-      .select("*")
-      .order("due_date", { ascending: false });
-
-    if (error) {
-      console.error("Error fetching invoices:", error);
-      setLoading(false);
-      return;
+  if(sequence!==fetchSequence.current)return;
+  const failed=results.find(x=>x.error);
+  if(failed?.error){setError(failed.error.message);setLoading(false);setRefreshing(false);return}
+  const [invoices,items,payments,clientRows,projectRows,recurrences,profile]=results;
+  const projectList=projectRows.data as Named[]||[];
+  const nextRows=(invoices.data as Invoice[]).map(i=>viewInvoice(i,items.data as InvoiceItem[],payments.data as InvoicePayment[],projectList.find(p=>p.id===i.project_id)?.name||''));
+  setRows(nextRows);
+  setClients(clientRows.data as Named[]||[]);setProjects(projectList);setSchedules(recurrences.data as Recurrence[]||[]);
+  const nextProfileName=(profile.data as {full_name?:string}|null)?.full_name||'';
+  setProfileName(nextProfileName);saveDashboardSnapshot(user.id+'|invoices',{rows:nextRows,clients:clientRows.data as Named[]||[],projects:projectList,schedules:recurrences.data as Recurrence[]||[],profileName:nextProfileName});
+  loadedRef.current=true;setLoading(false);setRefreshing(false);
+ },[user,setError]);
+ useEffect(()=>{queueMicrotask(()=>void fetchData())},[fetchData]);useEffect(()=>{const f=()=>void fetchData();window.addEventListener('invoice-updated',f);return()=>window.removeEventListener('invoice-updated',f)},[fetchData]);useEffect(()=>{const t=window.setTimeout(()=>setSearch(query.trim().toLowerCase()),220);return()=>window.clearTimeout(t)},[query]);
+ useEffect(()=>{if(!filtersOpen||!window.matchMedia('(max-width:760px)').matches)return;const button=filterButtonRef.current;const before=document.body.style.overflow;document.body.style.overflow='hidden';const timer=window.setTimeout(()=>filterSheetRef.current?.querySelector<HTMLElement>('button')?.focus(),20);const key=(event:KeyboardEvent)=>{if(event.key==='Escape'){event.preventDefault();setFiltersOpen(false)}if(event.key==='Tab'&&filterSheetRef.current){const controls=[...filterSheetRef.current.querySelectorAll<HTMLElement>('button,input,select')];const first=controls[0],last=controls[controls.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus()}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus()}}};document.addEventListener('keydown',key);return()=>{window.clearTimeout(timer);document.removeEventListener('keydown',key);document.body.style.overflow=before;button?.focus()}},[filtersOpen]);
+ useEffect(()=>{const id=params.get('invoice');if(id&&rows.some(r=>r.id===id)){queueMicrotask(()=>setDetail(id));setParams(p=>{const next=new URLSearchParams(p);next.delete('invoice');return next},{replace:true})}},[params,rows,setParams]);
+ const current=rows.filter(i=>!i.archived_at);const archived=rows.filter(i=>!!i.archived_at);const visible=tab==='Archived'?archived:current;const issued=current.filter(i=>i.lifecycle_state==='issued');const drafts=current.filter(i=>i.lifecycle_state==='draft');const due=issued.filter(i=>i.remainingCents>0&&daysFromToday(i.due_date)<=14).sort((a,b)=>daysFromToday(a.due_date)-daysFromToday(b.due_date));
+ const filtered=visible.filter(i=>{if(tab!=='All'&&tab!=='Archived'&&!(tab==='Overdue'?i.overdue:i.condition===tab))return false;if(search&&!`${i.client_name} ${i.invoice_number} ${i.description||''} ${i.project_name}`.toLowerCase().includes(search))return false;if(filters.client&&i.client_id!==filters.client)return false;if(filters.currency&&i.currency!==filters.currency)return false;if(filters.from&&i.due_date<filters.from)return false;if(filters.to&&i.due_date>filters.to)return false;if(filters.min&&cents(i.amount)<cents(filters.min))return false;if(filters.max&&cents(i.amount)>cents(filters.max))return false;return true}).sort((a,b)=>{const val=(i:InvoiceView)=>sort==='client'?i.client_name.toLowerCase():sort==='number'?i.invoice_number.toLowerCase():sort==='amount'?cents(i.amount):sort==='remaining'?i.remainingCents:sort==='due'?i.due_date:sort==='status'?i.condition:i.created_at;const av=val(a),bv=val(b);const result=typeof av==='number'?(av as number)-(bv as number):String(av).localeCompare(String(bv));return (ascending?result:-result)||a.id.localeCompare(b.id)});
+ const detailRow=rows.find(r=>r.id===detail)||null;const paymentRow=rows.find(r=>r.id===payment)||null;
+ const changeSort=(key:SortKey)=>{if(sort===key)setAscending(!ascending);else{setSort(key);setAscending(true)}};
+ const mutate=async(promise:PromiseLike<{error:unknown}>,message:string)=>{const result=await promise;if(result.error){setError(String((result.error as Error).message||result.error));return false}setNotice(message);window.dispatchEvent(new Event('invoice-updated'));return true};
+ const archive=async(i:InvoiceView)=>mutate(supabase.from('invoices').update({archived_at:new Date().toISOString()}).eq('id',i.id),'Invoice archived.');
+ const restore=async(i:InvoiceView)=>{const ok=await mutate(supabase.from('invoices').update({archived_at:null}).eq('id',i.id),'Invoice restored.');if(ok)setTab('All');return ok};
+ const confirmDelete=(i:InvoiceView)=>new Promise<boolean>(resolve=>setConfirm({title:'Delete invoice permanently?',message:`Delete ${i.lifecycle_state==='draft'?'this draft':i.invoice_number} for ${i.client_name}? You can undo during the four-second countdown. After that, its invoice details, payment entries, reminders, and recurrence schedule will be removed. Previously generated invoices and recorded income will stay; income will no longer link to this invoice.`,confirmText:'Start deletion',action:async()=>resolve(true),onCancel:()=>resolve(false)}));
+ const deleteInvoice=async(i:InvoiceView)=>{const {error:deleteError}=await supabase.rpc('delete_invoice',{p_invoice_id:i.id});if(deleteError){setError(deleteError.message);return}setDetail(null);setSelected(previous=>previous.filter(id=>id!==i.id));setNotice('Invoice deleted.');window.dispatchEvent(new Event('invoice-updated'))};
+ const duplicate=async(i:InvoiceView)=>{if(!i.currency){setError('Assign the original currency before duplicating this invoice.');return}const today=localDay();const {error:e}=await supabase.rpc('save_invoice_document',{p_invoice_id:null,p_document:{client_id:i.client_id,client_name:i.client_name,project_id:i.project_id,currency:i.currency,due_date:i.due_date>=today?i.due_date:today,issue_date:today,description:i.description,notes:i.notes,payment_terms:i.payment_terms,recipient_snapshot:i.recipient_snapshot,issuer_snapshot:i.issuer_snapshot},p_items:i.items.length?i.items.map(x=>({description:x.description,quantity:x.quantity,unit_rate:x.unit_rate})):[{description:i.description||'Invoice amount',quantity:1,unit_rate:i.amount}]});if(e){setError(e.message);return}setDetail(null);setNotice('Draft duplicated.');window.dispatchEvent(new Event('invoice-updated'))};
+ const reverse=(p:InvoicePayment)=>setConfirm({title:'Reverse payment?',message:`Reverse ${invoiceMoney(cents(p.amount),p.currency)} received on ${dateLabel(p.paid_on)}? The linked income transaction will be removed. The payment remains in the audit history.`,confirmText:'Reverse payment',action:async()=>{await mutate(supabase.rpc('reverse_invoice_payment',{p_payment_id:p.id}),'Payment reversed.')}});
+ const downloadPdf=async(i:InvoiceView|InvoiceView[])=>{try{await downloadInvoicePdf(i);setNotice('Invoice PDF downloaded.')}catch{setError('The invoice PDF could not be generated. Please try again.')}};
+ const bulk=async(action:'archive'|'activate'|'restore'|'download')=>{
+  const chosen=rows.filter(i=>selected.includes(i.id));
+  if(action==='download'){await downloadPdf(chosen);return}
+  const verb=action==='archive'?'Archive':action==='restore'?'Restore':'Activate';
+  setConfirm({title:`${verb} selected invoices?`,message:`${verb} ${chosen.length} selected invoice${chosen.length===1?'':'s'}? ${action==='archive'?'You can restore archived invoices later.':action==='activate'?'Eligible drafts become payable and receive invoice numbers.':'They will return to the active ledger.'}`,confirmText:`${verb} invoices`,action:async()=>{
+   let completed=0;
+   for(const i of chosen){
+    if(action==='archive'||action==='restore'){
+     const {error:e}=await supabase.from('invoices').update({archived_at:action==='archive'?new Date().toISOString():null}).eq('id',i.id);
+     if(e){setError(e.message);break}completed++;
+    }else if(i.lifecycle_state==='draft'){
+     const {error:e}=await supabase.rpc('activate_invoice',{p_invoice_id:i.id});
+     if(e){setError(e.message);break}completed++;
     }
+   }
+   setSelected([]);
+   if(completed){setNotice(`${completed} invoice${completed===1?'':'s'} ${action==='archive'?'archived':action==='restore'?'restored':'activated'}.`);window.dispatchEvent(new Event('invoice-updated'))}
+  }});
+ };
+ const headerActions=document.getElementById('invoices-header-actions');
+ return <main className="invoices-page">{headerActions&&createPortal(<button className="invoice-primary invoice-header-create" onClick={()=>setEditor(null)} aria-label="New invoice"><Plus size={16}/><span>New invoice</span></button>,headerActions)}
+ {createPortal(<div className="app-toast-viewport" aria-label="Notifications"><AnimatePresence initial={false}>{error&&<SwipeToast key={`error-${errorSequence}`} kind="error" message={error} onClose={()=>setError('')}/>}{notice&&<SwipeToast key={`notice-${noticeSequence}`} kind="success" message={notice} onClose={()=>setNotice('')}/>}</AnimatePresence></div>,document.body)}
+ <section className="invoice-kpis" aria-label="Invoice summary" tabIndex={0}>{([['Total invoiced',issued,(i:InvoiceView)=>cents(i.amount),'Issued value','primary'],['Paid to date',issued,(i:InvoiceView)=>i.paidCents,'Recorded payments','paid'],['Overdue',issued.filter(i=>i.overdue),(i:InvoiceView)=>i.remainingCents,'Past due','overdue'],['Outstanding',issued,(i:InvoiceView)=>i.remainingCents,'Unpaid balance','outstanding'],['Drafts',drafts,(i:InvoiceView)=>cents(i.amount),'Not yet payable','drafts']] as [string,InvoiceView[],(i:InvoiceView)=>number,string,string][]).map(([label,list,field,caption,tone])=><DashboardMetricCard key={label} className={`invoice-kpi invoice-kpi--${tone}`} label={label} value={loading?<div className="invoice-skeleton invoice-skeleton--number"/>:<CurrencyTotal rows={list} field={field} emptyCurrency={preferredCurrency as Currency}/>} detail={caption} loading={loading}/>)}</section>
+ <section className="invoice-attention"><div className="invoice-panel-head"><div><h2>Needs attention</h2><p>Overdue and upcoming payments within 14 days</p></div>{due.length>4&&<button className="invoice-text-button" onClick={()=>setAttentionAll(x=>!x)}>{attentionAll?'Show less':'View all'} <ChevronRight size={14}/></button>}</div>{loading?<div className="invoice-attention-list">{[0,1,2].map(x=><div className="invoice-attention-row" key={x}><div className="invoice-skeleton"/><div className="invoice-skeleton"/></div>)}</div>:due.length?<div className="invoice-attention-list">{due.slice(0,attentionAll?undefined:4).map(i=><button key={i.id} className="invoice-attention-row" onClick={()=>setDetail(i.id)}><span className={`invoice-attention-mark${i.overdue?' is-overdue':''}`}/><span className="invoice-attention-copy"><strong>{i.client_name}</strong><small>{i.invoice_number} · {dateLabel(i.due_date)}</small></span><span className="invoice-attention-money">{invoiceMoney(i.remainingCents,i.currency)}<small className={i.overdue?'is-overdue':''}>{dueText(i)}</small></span><ChevronRight size={16}/></button>)}</div>:<div className="invoice-empty-inline"><Check size={18}/> No payments need attention right now.</div>}</section>
+ <section className="invoice-ledger"><div className="invoice-panel-head"><div><h2>Invoice ledger</h2><p>{filtered.length} {tab==='Archived'?'archived':'active'} records{refreshing?' · Updating…':''}</p></div><button className="invoice-secondary" onClick={()=>{try{downloadBlob(invoiceCsv(filtered),`f-dash-invoices-${localDay()}.csv`,'text/csv;charset=utf-8');setNotice('Invoice CSV exported.')}catch{setError('Could not export the invoice CSV.')}}}><Download size={14}/> Export CSV</button></div><div className="invoice-ledger-tabs"><RubberSegment className="invoice-rubber-tabs" aria-label="Invoice ledger views" items={tabs.map(value=>({value,label:value==='Archived'?`Archived (${archived.length})`:value}))} value={tab} onChange={value=>{setTab(value as (typeof tabs)[number]);setSelected([])}} trackColor="#eeeafa" thumbColor="#fff" textColor="#35265e" activeTextColor="#27187e" size="md" /></div>
+ <div className="invoice-toolbar"><Seek width={360} height={38} ariaLabel="Search invoices" placeholder="Search client, number, description or project" value={query} onChange={setQuery}/><button ref={filterButtonRef} className={`invoice-secondary${filtersOpen?' is-active':''}`} onClick={()=>setFiltersOpen(x=>!x)}><Filter size={14}/> Filters {Object.values(filters).filter(Boolean).length>0&&<strong className="invoice-filter-count">{Object.values(filters).filter(Boolean).length}</strong>}</button>{selected.length>0&&<div className="invoice-bulk"><strong>{selected.length} selected</strong><button onClick={()=>void bulk('download')}>Download PDFs</button>{tab==='Archived'?<button onClick={()=>void bulk('restore')}>Restore</button>:<><button onClick={()=>void bulk('activate')}>Activate drafts</button><button onClick={()=>void bulk('archive')}>Archive</button></>}<button onClick={()=>setSelected([])}>Clear</button></div>}</div>
+ {filtersOpen&&<><div className="invoice-filter-backdrop" onClick={()=>setFiltersOpen(false)}/><div ref={filterSheetRef} className="invoice-filters" role="dialog" aria-label="Invoice filters"><div className="invoice-filter-head"><strong>Filters</strong><button onClick={()=>setFiltersOpen(false)} aria-label="Close filters"><X size={17}/></button></div><label>Client<select value={filters.client} onChange={e=>setFilters({...filters,client:e.target.value})}><option value="">All clients</option>{clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label><label>Currency<select value={filters.currency} onChange={e=>setFilters({...filters,currency:e.target.value})}><option value="">All currencies</option>{currencies.map(c=><option key={c}>{c}</option>)}</select></label><label>Due from<input type="date" value={filters.from} onChange={e=>setFilters({...filters,from:e.target.value})}/></label><label>Due to<input type="date" value={filters.to} onChange={e=>setFilters({...filters,to:e.target.value})}/></label><label>Min amount<input type="number" min="0" value={filters.min} onChange={e=>setFilters({...filters,min:e.target.value})}/></label><label>Max amount<input type="number" min="0" value={filters.max} onChange={e=>setFilters({...filters,max:e.target.value})}/></label><button className="invoice-text-button" onClick={()=>{setFilters(emptyFilters);setQuery('');setTab('All')}}>Reset filters</button><div className="invoice-filter-actions"><button className="invoice-primary" onClick={()=>setFiltersOpen(false)}>Apply filters</button><button className="invoice-secondary" onClick={()=>setFiltersOpen(false)}>Close</button></div></div></>}
 
-    if (data) {
-      const formatted: ClientPayment[] = data.map((d) => ({
-        id: d.id,
-        client: d.client_name,
-        invoice: d.invoice_number,
-        amount: Number(d.amount),
-        dueDate: d.due_date,
-        status: d.status,
-        client_id: d.client_id,
-        description: d.description || "",
-      }));
-      setInvoices(formatted);
-
-      const total = formatted.reduce((sum, inv) => sum + inv.amount, 0);
-      const outstanding = formatted
-        .filter((inv) => inv.status !== "Paid")
-        .reduce((sum, inv) => sum + inv.amount, 0);
-      const paid = formatted
-        .filter((inv) => inv.status === "Paid")
-        .reduce((sum, inv) => sum + inv.amount, 0);
-
-      setKpis([
-        { label: "Total Invoiced", value: format(total) },
-        { label: "Outstanding", value: format(outstanding) },
-        { label: "Paid to Date", value: format(paid) },
-      ]);
-    }
-    setLoading(false);
-  }
-
-  useEffect(() => {
-    fetchInvoices();
-  }, [user]);
-
-  function openAddModal() {
-    setInvoiceToEdit(null);
-    setIsModalOpen(true);
-  }
-
-  function openEditModal(invoice: ClientPayment) {
-    setInvoiceToEdit(invoice);
-    setIsModalOpen(true);
-  }
-
-  async function handleDeleteConfirm() {
-    if (!itemToDelete) return;
-    setIsDeleting(true);
-    const { error } = await supabase.from("invoices").delete().eq("id", itemToDelete.id);
-    if (error) console.error("Error deleting invoice:", error);
-    else fetchInvoices();
-    setIsDeleting(false);
-    setItemToDelete(null);
-  }
-
-  return (
-    <div className="page">
-      <div className="page__toolbar">
-        <button className="btn btn--primary" onClick={openAddModal}>
-          + New Invoice
-        </button>
-      </div>
-
-      <div className="page__row page__row--3">
-        {kpis.map((kpi) => (
-          <StatCard key={kpi.label} {...kpi} />
-        ))}
-      </div>
-
-      <div className="page__row page__row--full">
-        {loading ? (
-          <div className="page-loading">Loading invoices...</div>
-        ) : (
-          <ClientPaymentsTable
-            data={invoices}
-            onEdit={openEditModal}
-            onDelete={(inv) => setItemToDelete(inv)}
-          />
-        )}
-      </div>
-
-      <AddInvoiceModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onInvoiceAdded={fetchInvoices}
-        invoiceToEdit={invoiceToEdit}
-      />
-
-      <ConfirmModal
-        isOpen={!!itemToDelete}
-        onClose={() => setItemToDelete(null)}
-        title="Delete Invoice"
-        message="Are you sure you want to delete this invoice? This action cannot be undone."
-        confirmText="Delete"
-        cancelText="Cancel"
-        onConfirm={handleDeleteConfirm}
-        confirmVariant="danger"
-        loading={isDeleting}
-      />
-    </div>
-  );
+ <DashboardContentTransition transitionKey={tab}>
+ {loading?<div className="invoice-table-skeleton">{[0,1,2,3,4].map(x=><div key={x} className="invoice-skeleton"/>)}</div>:filtered.length?<div className="invoice-table-wrap"><table className="invoice-table"><thead><tr><th><input aria-label="Select all visible invoices" type="checkbox" checked={filtered.length>0&&filtered.every(i=>selected.includes(i.id))} onChange={e=>setSelected(e.target.checked?filtered.map(i=>i.id):[])}/></th>{([['client','Client'],['number','Invoice'],['amount','Amount'],['remaining','Remaining'],['due','Due date'],['status','Status'],['created','Created']] as [SortKey,string][]).map(([key,label])=><th key={key}><button onClick={()=>changeSort(key)}>{label}{sort===key?(ascending?<ArrowUp size={12}/>:<ArrowDown size={12}/>):null}</button></th>)}<th> </th></tr></thead><tbody>{filtered.map(i=><tr key={i.id} onClick={()=>setDetail(i.id)} tabIndex={0} onKeyDown={e=>{if(e.key==='Enter')setDetail(i.id)}}><td onClick={e=>e.stopPropagation()}><input type="checkbox" aria-label={`Select ${i.invoice_number}`} checked={selected.includes(i.id)} onChange={e=>setSelected(p=>e.target.checked?[...p,i.id]:p.filter(x=>x!==i.id))}/></td><td data-label="Client"><span className="invoice-client"><i>{initials(i.client_name)}</i><strong>{i.client_name}<small>{i.project_name||'No project'}</small></strong></span></td><td data-label="Invoice"><strong>{i.invoice_number.startsWith('DRAFT-')?'Draft':i.invoice_number}</strong></td><td data-label="Amount">{invoiceMoney(cents(i.amount),i.currency)}</td><td data-label="Remaining" className="invoice-table-remaining">{invoiceMoney(i.remainingCents,i.currency)}</td><td data-label="Due"><span>{dateLabel(i.due_date)}</span>{i.overdue&&<small className="is-overdue">{dueText(i)}</small>}</td><td data-label="Status"><span className={`invoice-badge invoice-badge--${badge(i)}`}>{i.condition}</span>{i.overdue&&i.condition==='Partial'&&<small className="is-overdue">Overdue</small>}</td><td data-label="Created">{dateLabel(i.created_at)}</td><td><button className="invoice-icon" aria-label={`View ${i.invoice_number}`} data-tooltip="View invoice" onClick={e=>{e.stopPropagation();setDetail(i.id)}}><ChevronRight size={16}/></button></td></tr>)}</tbody></table></div>:<div className="invoice-empty"><FileText size={26}/><h3>{tab==='Archived'&&!archived.length?'No archived invoices':!visible.length?'No active invoices':'No invoices match these filters'}</h3><p>{tab==='Archived'&&!archived.length?'Invoices you archive will appear here until you restore or delete them.':!visible.length?'Create an invoice to start tracking payments and due dates.':'Try a different search or clear filters.'}</p>{visible.length?<button className="invoice-secondary" onClick={()=>{setFilters(emptyFilters);setQuery('');setTab('All')}}>Clear filters</button>:tab!=='Archived'&&<button className="invoice-primary" onClick={()=>setEditor(null)}>Create invoice</button>}</div>}
+ </DashboardContentTransition></section>
+ {detailRow&&<Detail invoice={detailRow} onClose={()=>setDetail(null)} onEdit={()=>{setDetail(null);setEditor(detailRow)}} onPayment={()=>{setDetail(null);setPayment(detailRow.id)}} onDuplicate={()=>void duplicate(detailRow)} onArchive={()=>archive(detailRow)} onRestore={()=>restore(detailRow)} onConfirmDelete={()=>confirmDelete(detailRow)} onDelete={()=>deleteInvoice(detailRow)} onReverse={reverse} onDownload={()=>void downloadPdf(detailRow)} schedule={schedules.find(s=>s.template_invoice_id===detailRow.id)} onSchedule={()=>{const s=schedules.find(s=>s.template_invoice_id===detailRow.id);if(s)void mutate(supabase.from('invoice_recurrences').update({state:s.state==='active'?'paused':'active'}).eq('id',s.id),'Recurrence updated.')}} onCancelSchedule={()=>{const s=schedules.find(s=>s.template_invoice_id===detailRow.id);if(s)setConfirm({title:'Cancel recurrence?',message:'Future drafts will stop generating. Existing invoices and payments will remain.',confirmText:'Cancel recurrence',action:async()=>{await mutate(supabase.from('invoice_recurrences').update({state:'cancelled'}).eq('id',s.id),'Recurrence canceled.')}})}}/>}
+ {paymentRow&&<PaymentForm invoice={paymentRow} onClose={()=>setPayment(null)} onSaved={()=>{setPayment(null);setNotice('Payment recorded.')}} onError={setError}/>}
+ {editor!==false&&user&&<Editor key={editor?.id||'new'} invoice={editor} userId={user.id} clients={clients} projects={projects} profileName={profileName} defaultCurrency={preferredCurrency as Currency} onClose={()=>setEditor(false)} onSaved={message=>{setEditor(false);setNotice(message)}} onError={setError}/>}
+ <ConfirmModal isOpen={Boolean(confirm)} onClose={()=>{if(!confirmBusy){confirm?.onCancel?.();setConfirm(null)}}} title={confirm?.title||''} message={confirm?.message||''} confirmText={confirm?.confirmText||'Confirm'} cancelText="Cancel" onConfirm={()=>{if(!confirm)return;setConfirmBusy(true);void confirm.action().catch(cause=>setError(cause instanceof Error?cause.message:'The action could not be completed.')).finally(()=>{setConfirmBusy(false);setConfirm(null)})}} confirmVariant="danger" loading={confirmBusy}/>
+ </main>
 }

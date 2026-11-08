@@ -1,0 +1,304 @@
+/* The five operational lists share one surface and control vocabulary. */
+.finance-table-wrap,
+.projects-table-wrap,
+.crm-list,
+.invoice-table-wrap,
+.goals-list {
+  border: 1px solid #d9d4e7;
+  border-radius: 10px;
+  background: #fff;
+  scrollbar-color: #c9c0eb transparent;
+}
+
+.finance-table th,
+.projects-table th,
+.invoice-table th,
+.crm-list-head,
+.goals-list__head {
+  background: #f2f0fa;
+  color: #514875;
+  border-bottom: 1px solid #d9d4e7;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: .01em;
+  text-transform: none;
+}
+.finance-table th,
+.projects-table th,
+.invoice-table th,
+.crm-list-head,
+.goals-list__head { background: #27187e; color: #fff; }
+.finance-table thead th,
+.projects-table thead th,
+.invoice-table thead th,
+.crm-list-head,
+.goals-list__head { color: #fff !important; font-size: 12px; font-weight: 750; }
+.invoice-table thead th button { color: #fff !important; opacity: 1; }
+.invoice-table thead th button:hover { color: #fff; background: #ffffff24; }
+.finance-table :is(th,td):first-child,
+.projects-table :is(th,td):first-child { padding-left: 18px; }
+.finance-table :is(th,td):last-child,
+.projects-table :is(th,td):last-child { padding-right: 9px; }
+
+.finance-table td,
+.projects-table td,
+.invoice-table td,
+.crm-list-row,
+.goals-list__row {
+  border-bottom-color: #eae7f1;
+  color: #4f495f;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  transition: background-color .16s ease;
+}
+
+.finance-table td,
+.projects-table td,
+.invoice-table td { padding-top: 14px; padding-bottom: 14px; }
+.crm-list-row,
+.goals-list__row { min-height: 62px; padding-top: 12px; padding-bottom: 12px; }
+.finance-table tbody tr:last-child td,
+.projects-table tbody tr:last-child td,
+.invoice-table tbody tr:last-child td,
+.goals-list__row:last-child { border-bottom: 0; }
+.finance-table tbody tr:hover,
+.projects-table tbody tr:hover,
+.invoice-table tbody tr:hover,
+.crm-list-row:hover,
+.goals-list__row:hover { background: #faf9ff; }
+.finance-table tbody tr:hover,
+.projects-table tbody tr:hover,
+.invoice-table tbody tr:hover,
+.crm-list-row:hover,
+.goals-list__row:hover { background: transparent; }
+.crm-list-row:nth-child(odd) { background: transparent; }
+.projects-table tbody tr:hover td { background: transparent; }
+@media (min-width: 769px) {
+  .finance-table tbody tr:hover,
+  .projects-table tbody tr:hover,
+  .invoice-table tbody tr:hover:not(:has(input:checked)),
+  .crm-list-row:hover,
+  .goals-list__row:hover,
+  .crm-list-row:nth-child(odd) { background: transparent !important; }
+  .projects-table tbody tr:hover td { background: transparent !important; }
+}
+.finance-table-wrap,
+.projects-table-wrap,
+.crm-list,
+.invoice-table-wrap,
+.goals-list { position: relative; }
+.finance-panel:has(.finance-table),
+.projects-collection,
+.crm-page,
+.invoice-ledger,
+.goals-workspace { position: relative; }
+.finance-panel:has(.finance-table) .finance-revealed { position: relative; z-index: 3; }
+.finance-panel:has(.finance-table) .finance-table-wrap { background: transparent; }
+.finance-table,
+.projects-table,
+.invoice-table { position: relative; z-index: 3; }
+.finance-table :is(th,td),
+.projects-table :is(th,td),
+.invoice-table :is(th,td),
+.crm-list-head > *,
+.crm-list-row > *,
+.goals-list__head > *,
+.goals-list__row > * { position: relative; z-index: 4; }
+.crm-list-head,
+.crm-list-row,
+.goals-list__head,
+.goals-list__row { position: relative; z-index: 3; }
+.table-list-hover {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  border-radius: 0;
+  background: rgba(0,0,0,.06);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 230ms cubic-bezier(.22,1,.36,1), height 230ms cubic-bezier(.22,1,.36,1), opacity .15s;
+}
+.finance-table strong,
+.projects-table td strong,
+.invoice-table td strong,
+.crm-list-row strong,
+.goals-list__row > button { color: #211b3b; font-weight: 750; }
+.finance-table td small,
+.invoice-table td small,
+.goals-list__row small { color: #6f697d; line-height: 1.4; }
+
+.finance-filters input,
+.finance-filters select,
+.projects-filters input,
+.projects-filters select,
+.crm-search,
+.invoice-search,
+.goals-search,
+.goals-tools > button,
+.goals-tools > label:last-child {
+  border-color: #d5d0e2;
+  min-height: 38px;
+  border-radius: 8px;
+  background-color: #fff;
+}
+.finance-filters :is(input,select):focus-visible,
+.projects-filters :is(input,select):focus-visible,
+.crm-search:focus-within,
+.invoice-search:focus-within,
+.goals-search:focus-within {
+  outline: 2px solid #7664cc;
+  outline-offset: 2px;
+}
+.finance-filters { grid-template-columns: minmax(190px,2fr) repeat(3,minmax(120px,1fr)); gap: 8px; }
+.finance-filters input { grid-column: span 2; }
+
+.finance-badge,
+.projects-table .projects-status,
+.crm-list-industry,
+.invoice-badge,
+.goals-list .goals-priority {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 5px 9px;
+  border-radius: 7px;
+  font-size: 10px;
+  font-weight: 750;
+  line-height: 1.2;
+}
+.finance-badge--income { background: #e8f5ef; color: #176747 !important; }
+.finance-badge--expense { background: #faecee; color: #a43e4d !important; }
+.finance-table .is-income { color: #176747; }
+.finance-table .is-expense { color: #a43e4d; }
+.projects-table .projects-status.is-overdue { background: #faecee; color: #a43e4d; }
+.projects-table .projects-status.is-complete { background: #e8f5ef; color: #176747; }
+.projects-table .projects-status.is-progress { background: #ecf1fb; color: #315f9b; }
+.projects-table .projects-status.is-pending { background: #fbf2e2; color: #895d21; }
+.projects-repo-connected { color: #176747; font-weight: 700; }
+.goals-list .goals-priority--medium { background: #fbf2e2; color: #895d21; }
+.goals-list__status { display: inline-flex; width: fit-content; padding: 5px 9px; border-radius: 7px; background: #ecf1fb; color: #315f9b; font-size: 10px; font-weight: 750; }
+.goals-list__status.is-complete { background: #e8f5ef; color: #176747; }
+
+.finance-row-actions button,
+.finance-row-actions a,
+.projects-table .projects-text-button,
+.invoice-table .invoice-icon,
+.goals-list__row > div button {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #4935a5;
+  text-decoration: none;
+  cursor: pointer;
+}
+.finance-row-actions :is(button,a):hover,
+.projects-table .projects-text-button:hover,
+.invoice-table .invoice-icon:hover,
+.goals-list__row > div button:hover:not(:disabled) { background: #efeff2; border-color: #dedde6; color: #27187e; text-decoration: none; }
+.finance-row-actions .is-danger:hover { background: #faecee; border-color: #eed0d4; color: #a43e4d; }
+.finance-row-actions :is(button,a):focus-visible,
+.projects-table .projects-text-button:focus-visible,
+.invoice-table .invoice-icon:focus-visible,
+.goals-list__row > div button:focus-visible { outline: 2px solid #7664cc; outline-offset: 2px; }
+.goals-list__row > div button:disabled { opacity: .36; cursor: default; }
+.table-list-tooltip {
+  position: fixed;
+  z-index: 1000;
+  white-space: nowrap;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #27187e;
+  color: #fff;
+  font: 600 11px Inter, system-ui, sans-serif;
+  pointer-events: none;
+  box-shadow: 0 5px 14px #150c4a24;
+}
+
+.invoice-table th button { min-height: 30px; border-radius: 5px; }
+.invoice-table th button:focus-visible { outline: 2px solid #7664cc; outline-offset: 1px; }
+.invoice-table input[type="checkbox"] { accent-color: #4935a5; width: 16px; height: 16px; }
+.invoice-table tbody tr:has(input:checked) { background: #f0edfa; }
+.goals-list__row > button { min-width: 0; padding: 0; }
+.goals-list__row > button:hover { color: #4935a5; }
+.goals-list__row > div { gap: 2px; }
+
+@media (max-width: 768px) {
+  .table-list-hover { display: none; }
+  .finance-table tbody tr:hover,
+  .projects-table tbody tr:hover,
+  .invoice-table tbody tr:hover,
+  .crm-list-row:hover,
+  .goals-list__row:hover { background: #efeff2; }
+  .crm-list-row:nth-child(odd) { background: #fff; }
+  .finance-table-wrap,
+  .projects-table-wrap,
+  .invoice-table-wrap,
+  .goals-list { border: 0; background: transparent; overflow: visible; }
+  .finance-table tbody,
+  .projects-table tbody,
+  .invoice-table tbody,
+  .goals-list { display: grid; gap: 9px; }
+  .finance-table tbody tr,
+  .projects-table tbody tr,
+  .invoice-table tbody tr,
+  .crm-list-row,
+  .goals-list__row { background: #fff; border: 1px solid #d9d4e7; border-radius: 10px; box-shadow: 0 1px 3px #27187e0a; }
+  .finance-table tbody tr { grid-template-columns: minmax(0,1fr) auto; }
+  .finance-filters { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .finance-table td { min-width: 0; }
+  .finance-table :is(th,td):first-child,
+  .projects-table :is(th,td):first-child { padding-left: 0; }
+  .finance-table :is(th,td):last-child,
+  .projects-table :is(th,td):last-child { padding-right: 0; }
+  .finance-table td:first-child { grid-column: 1; grid-row: 1; }
+  .finance-table td:nth-child(4) { grid-column: 2; grid-row: 1; text-align: right; }
+  .finance-table td:nth-child(5) { grid-column: 2; grid-row: 2; text-align: right; }
+  .finance-table td:nth-child(6) { grid-column: 1 / -1; grid-row: auto; }
+  .finance-row-actions { justify-content: flex-end; }
+  .projects-view-switch { display: flex; }
+  .projects-table { display: block; min-width: 0; }
+  .projects-table thead { display: none; }
+  .projects-table tbody tr { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 7px 12px; padding: 13px; }
+  .projects-table td { padding: 0; border: 0; min-width: 0; }
+  .projects-table td:first-child { grid-column: 1; font-size: 14px; }
+  .projects-table td:nth-child(2) { grid-column: 1; color: #6f697d; }
+  .projects-table td:nth-child(3) { grid-column: 2; grid-row: 1; }
+  .projects-table td:nth-child(n+4):nth-child(-n+7) { font-size: 11px; }
+  .projects-table td:nth-child(4)::before { content: "Progress · "; color: #6f697d; }
+  .projects-table td:nth-child(5)::before { content: "Deadline · "; color: #6f697d; }
+  .projects-table td:nth-child(6)::before { content: "Confirmed · "; color: #6f697d; }
+  .projects-table td:nth-child(7)::before { content: "GitHub · "; color: #6f697d; }
+  .projects-table td:last-child { grid-column: 2; grid-row: 2; justify-self: end; }
+  .crm-list { display: grid; gap: 9px; border: 0; background: transparent; box-shadow: none; overflow: visible; }
+  .crm-list-row { gap: 9px 12px; }
+  .crm-list-row > button { font-size: 13px; }
+  .crm-list-row > span:nth-child(2)::before { content: "Email · "; color: #6f697d; }
+  .crm-list-row > span:nth-child(3)::before { content: "Phone · "; color: #6f697d; }
+  .crm-list-row > span:nth-child(5)::before { content: "Projects · "; color: #6f697d; }
+  .crm-list-row > select { min-height: 38px; }
+  .invoice-table tbody tr { padding: 13px; }
+  .invoice-table td:nth-child(8) { display: block; grid-column: 2; grid-row: 4; font-size: 10px; color: #6f697d; }
+  .invoice-table td:nth-child(8)::before { content: "Created · "; }
+  .invoice-table td:last-child { display: block; grid-column: 3; grid-row: 4; justify-self: end; }
+  .invoice-table td:nth-child(5) { color: #211b3b; font-weight: 750; }
+  .goals-list__head { display: none; }
+  .goals-list__row { min-width: 0; grid-template-columns: minmax(0,1fr) auto; gap: 8px 12px; padding: 13px; }
+  .goals-list__row > button { grid-column: 1 / -1; font-size: 13px; }
+  .goals-list__row small { max-width: none; white-space: normal; }
+  .goals-list__row > span:nth-child(2) { grid-column: 1; }
+  .goals-list__row > span:nth-child(3) { grid-column: 2; text-align: right; }
+  .goals-list__row > span:nth-child(4)::before { content: "Due · "; color: #6f697d; }
+  .goals-list__row > strong:nth-child(5) { grid-column: 2; text-align: right; color: #4935a5; }
+  .goals-list__row > span:nth-child(6) { grid-column: 1; }
+  .goals-list__row > div { grid-column: 2; justify-content: flex-end; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .finance-table td,.projects-table td,.invoice-table td,.crm-list-row,.goals-list__row { transition: none; }
+  .table-list-hover { transition: none; }
+}

@@ -1,0 +1,45 @@
+:root {
+  --dashboard-persian: #27187e;
+  --dashboard-violet: #4935a5;
+  --dashboard-ghost: #f7f7ff;
+  --dashboard-white: #fff;
+  --dashboard-ink: #211b3b;
+  --dashboard-muted: #736e83;
+  --dashboard-line: #ddd9e9;
+  --dashboard-panel-shadow: 0 1px 2px #27187e0b, 0 8px 22px #27187e0b;
+  --dashboard-feature-shadow: 0 2px 4px #27187e14, 0 12px 22px #27187e24;
+}
+
+:where(.dashboard-metric) {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 0;
+  background: var(--dashboard-white);
+  border: 1px solid var(--dashboard-line);
+  border-radius: 14px;
+  box-shadow: var(--dashboard-panel-shadow);
+}
+
+:where(.dashboard-metric) > span {
+  font-size: 11px;
+  font-weight: 750;
+}
+
+:where(.dashboard-metric) > strong {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+:where(.dashboard-metric) > small {
+  font-size: 10px;
+}
+
+/* Summary panels across the updated dashboard routes share one surface. */
+:where(.overview__panel, .finance-panel, .projects-panel, .invoice-attention, .invoice-ledger) {
+  min-width: 0;
+  background: var(--dashboard-white);
+  border: 1px solid var(--dashboard-line);
+  border-radius: 14px;
+  box-shadow: var(--dashboard-panel-shadow);
+}

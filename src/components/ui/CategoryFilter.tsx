@@ -30,7 +30,7 @@ export default function CategoryFilter({ categories, selected, onChange }: Categ
   }
 
   const label = selected.length === 0
-    ? "All Categories"
+    ? "All Industries"
     : selected.length === 1
     ? categories.find((c) => c.id === selected[0])?.name ?? "1 selected"
     : `${selected.length} selected`;
@@ -41,6 +41,7 @@ export default function CategoryFilter({ categories, selected, onChange }: Categ
         type="button"
         className={`cat-filter__btn${selected.length > 0 ? " cat-filter__btn--active" : ""}`}
         onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <line x1="8" y1="6" x2="21" y2="6" />
@@ -59,7 +60,7 @@ export default function CategoryFilter({ categories, selected, onChange }: Categ
       {open && (
         <div className="cat-filter__dropdown">
           <div className="cat-filter__header">
-            <span>Filter by category</span>
+            <span>Filter by Industry Category</span>
             {selected.length > 0 && (
               <button type="button" className="cat-filter__clear" onClick={() => onChange([])}>
                 Clear
@@ -68,10 +69,10 @@ export default function CategoryFilter({ categories, selected, onChange }: Categ
           </div>
 
           {categories.length === 0 ? (
-            <div className="cat-filter__empty">No categories yet</div>
+            <div className="cat-filter__empty">No Industry Categories yet</div>
           ) : (
             categories.map((cat) => (
-              <label key={cat.id} className="cat-filter__item">
+              <label key={cat.id} className={`cat-filter__item${selected.includes(cat.id) ? " cat-filter__item--selected" : ""}`}>
                 <input
                   type="checkbox"
                   checked={selected.includes(cat.id)}

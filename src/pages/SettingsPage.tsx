@@ -1,508 +1,1058 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ImagePlus,
+  LockKeyhole,
+  Palette,
+  ShieldCheck,
+  SlidersHorizontal,
+  Tags,
+  Trash2,
+  UserRound,
+  X,
+} from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useAuth } from "../components/auth/AuthProvider";
+import { PasswordStrength } from "../components/auth/PasswordStrength";
+import { LabelInput } from "../components/ui/LabelInput";
+import { Seek } from "../components/ui/Seek";
+import "../components/ui/LabelInput.css";
+import "../components/ui/Seek.css";
 import { useProfile } from "../components/auth/ProfileContext";
-import { supabase } from "../lib/supabase";
 import { useCategoryAssignments } from "../hooks/useCategoryAssignments";
+import { supabase } from "../lib/supabase";
+import SwipeToast from "../components/ui/SwipeToast";
 import "./SettingsPage.css";
 
-type TabType = "general" | "security" | "preferences" | "categories";
-
-const PRESET_COLORS = [
-  "#E87B3A", "#34C759", "#3296FA", "#FF453A",
-  "#A450FF", "#FFD60A", "#00C7BE", "#FF9F0A",
-  "#BF5AF2", "#32ADE6", "#FF6961", "#8A8A9A",
+type Section = "account" | "security" | "preferences" | "industries";
+type Currency = "USD" | "EUR" | "GEL";
+const sections = [
+  { id: "account", label: "Account", icon: UserRound },
+  { id: "security", label: "Security", icon: ShieldCheck },
+  { id: "preferences", label: "Preferences", icon: SlidersHorizontal },
+  { id: "industries", label: "Client Industries", icon: Tags },
+] as const;
+const currencies = [
+  { code: "USD", name: "US Dollar", symbol: "$" },
+  { code: "EUR", name: "Euro", symbol: "€" },
+  { code: "GEL", name: "Georgian Lari", symbol: "₾" },
+] as const;
+const swatches = [
+  "#4935A5",
+  "#7664CC",
+  "#16845E",
+  "#2777A5",
+  "#A45C87",
+  "#B57A35",
+  "#52678C",
+  "#6B7487",
 ];
+const validSection = (s: string | null): s is Section => sections.some((x) => x.id === s);
+const validCurrency = (s: string | null): s is Currency => currencies.some((x) => x.code === s);
+const validColor = (s: string) => /^#[0-9a-fA-F]{6}$/.test(s);
 
-const UserIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-    <circle cx="12" cy="7" r="4" />
-  </svg>
-);
-
-const LockIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-  </svg>
-);
-
-const GearIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="3" />
-    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-  </svg>
-);
-
-const TagIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
-    <line x1="7" y1="7" x2="7.01" y2="7" />
-  </svg>
-);
-
-const CameraIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-    <circle cx="12" cy="13" r="4" />
-  </svg>
-);
-
-function applyTheme(dark: boolean) {
-  if (dark) {
-    document.documentElement.classList.remove("light-mode");
-  } else {
-    document.documentElement.classList.add("light-mode");
-  }
+function Skeleton({ rows = 2 }: { rows?: number }) {
+  return (
+    <div className="settings-skeleton" role="status" aria-label="Loading settings">
+      {Array.from({ length: rows }, (_, i) => (
+        <div key={i} className="settings-skeleton__row">
+          <i />
+          <span>
+            <b />
+            <b />
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+function PasswordField({
+  label,
+  value,
+  change,
+  autoComplete,
+  error,
+  shakeToken,
+}: {
+  label: string;
+  value: string;
+  change: (s: string) => void;
+  autoComplete: string;
+  error?: string;
+  shakeToken?: number;
+}) {
+  return <LabelInput field={label} type="password" corner={20}
+    value={value} onChange={change} autoComplete={autoComplete} error={error} shakeToken={shakeToken} />;
+}
+function Dialog({
+  title,
+  close,
+  children,
+  locked = false,
+}: {
+  title: string;
+  close: () => void;
+  children: React.ReactNode;
+  locked?: boolean;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const callbackRef = useRef(close);
+  const lockedRef = useRef(locked);
+  useEffect(() => {
+    callbackRef.current = close;
+    lockedRef.current = locked;
+  });
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    closeRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !lockedRef.current) callbackRef.current();
+      if (e.key !== "Tab") return;
+      const nodes = Array.from(
+        ref.current?.querySelectorAll<HTMLElement>(
+          "button:not([disabled]),input:not([disabled])",
+        ) ?? [],
+      );
+      if (!nodes.length) return;
+      if (e.shiftKey && document.activeElement === nodes[0]) {
+        e.preventDefault();
+        nodes.at(-1)?.focus();
+      } else if (!e.shiftKey && document.activeElement === nodes.at(-1)) {
+        e.preventDefault();
+        nodes[0].focus();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = overflow;
+      document.removeEventListener("keydown", onKey);
+      previous?.focus();
+    };
+  }, []);
+  return createPortal(
+    <div
+      className="settings-dialog-backdrop"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget && !locked) close();
+      }}
+    >
+      <div ref={ref} className="settings-dialog" role="dialog" aria-modal="true" aria-label={title}>
+        <div className="settings-dialog__head">
+          <h2>{title}</h2>
+          <button ref={closeRef} onClick={close} disabled={locked} aria-label="Close dialog">
+            <X size={19} />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>,
+    document.body,
+  );
 }
 
 export default function SettingsPage() {
   const { user } = useAuth();
-  const { avatarUrl, fullName, setAvatarUrl, setFullName } = useProfile();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [activeTab, setActiveTab] = useState<TabType>("general");
-  const [loading, setLoading] = useState(false);
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  const [message, setMessage] = useState({ text: "", type: "" });
-
-  const [localName, setLocalName] = useState(fullName);
-  const [bio, setBio] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmNewPassword, setConfirmNewPassword] = useState("");
-  const [is2FAEnabled, setIs2FAEnabled] = useState(false);
-  const [currency, setCurrency] = useState("USD");
-  const [darkMode, setDarkMode] = useState(true);
-  const [showGitHub, setShowGitHub] = useState(true);
-  const [notifications, setNotifications] = useState({
-    account: true,
-    projects: true,
-    marketing: false,
-  });
-
+  const userId = user?.id;
+  const { avatarUrl, fullName, loading: profileLoading, setAvatarUrl, setFullName } = useProfile();
+  const location = useLocation(),
+    navigate = useNavigate();
+  const query = new URLSearchParams(location.search);
+  const param = query.get("section") ?? (query.get("tab") === "general" ? "account" : null);
+  const active = validSection(param) ? param : "account";
+  const [mobileHome, setMobileHome] = useState(!validSection(param));
+  const [toast, setToast] = useState<{
+    kind: "success" | "error";
+    message: string;
+    id: number;
+  } | null>(null);
+  const notify = (kind: "success" | "error", message: string) =>
+    setToast({ kind, message, id: Date.now() });
+  const [name, setName] = useState(""),
+    [savedName, setSavedName] = useState(""),
+    [nameError, setNameError] = useState(""),
+    [savingName, setSavingName] = useState(false);
+  const [uploading, setUploading] = useState(false),
+    [photoStatus, setPhotoStatus] = useState(""),
+    [preview, setPreview] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [currentPassword, setCurrentPassword] = useState(""),
+    [newPassword, setNewPassword] = useState(""),
+    [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordError, setPasswordError] = useState(""),
+    [savingPassword, setSavingPassword] = useState(false);
+  const [passwordErrorField, setPasswordErrorField] = useState<"current" | "new" | "confirm" | "">("");
+  const [passwordShakeToken, setPasswordShakeToken] = useState(0);
+  const [currency, setCurrency] = useState<Currency>("USD"),
+    [savedCurrency, setSavedCurrency] = useState<Currency>("USD");
+  const [currencyLoading, setCurrencyLoading] = useState(true),
+    [savingCurrency, setSavingCurrency] = useState(false);
+  const [search, setSearch] = useState(""),
+    [editor, setEditor] = useState<string | null>(null),
+    [industryName, setIndustryName] = useState(""),
+    [industryColor, setIndustryColor] = useState(swatches[0]);
+  const [industryError, setIndustryError] = useState(""),
+    [industryBusy, setIndustryBusy] = useState(false),
+    [deleteId, setDeleteId] = useState<string | null>(null);
+  const [clearStep, setClearStep] = useState(0),
+    [clearPassword, setClearPassword] = useState(""),
+    [clearError, setClearError] = useState(""),
+    [clearing, setClearing] = useState(false);
   const {
     categories,
+    assignments,
+    loading: industriesLoading,
+    fetchAll,
     createCategory,
     updateCategory,
     deleteCategory,
-    getClientsCountForCategory,
   } = useCategoryAssignments();
-
-  const [newCatName, setNewCatName] = useState("");
-  const [newCatColor, setNewCatColor] = useState(PRESET_COLORS[0]);
-  const [editingCatId, setEditingCatId] = useState<string | null>(null);
-  const [editingCatName, setEditingCatName] = useState("");
-  const [editingCatColor, setEditingCatColor] = useState("");
-  const [catError, setCatError] = useState("");
-  const [catLoading, setCatLoading] = useState(false);
-  const [deletingCatId, setDeletingCatId] = useState<string | null>(null);
-
+  const counts = useMemo(() => {
+    const map = new Map<string, number>();
+    assignments.forEach((x) => map.set(x.category_id, (map.get(x.category_id) ?? 0) + 1));
+    return map;
+  }, [assignments]);
+  const filtered = useMemo(
+    () =>
+      categories.filter((x) =>
+        x.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()),
+      ),
+    [categories, search],
+  );
+  const reduceMotion = useReducedMotion();
+  const railRef = useRef<HTMLElement>(null);
+  const [railHover, setRailHover] = useState({ y: 0, height: 0, visible: false });
+  const moveRailHover = (element: HTMLElement) => {
+    const rail = railRef.current;
+    if (!rail) return;
+    const item = element.getBoundingClientRect();
+    const parent = rail.getBoundingClientRect();
+    setRailHover({ y: item.top - parent.top, height: item.height, visible: true });
+  };
   useEffect(() => {
-    async function fetchProfile() {
-      if (!user) return;
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .single();
-      if (error && error.code !== "PGRST116") console.error(error);
-      if (data) {
-        setLocalName(data.full_name || "");
-        setBio(data.bio || "");
-      }
-    }
-    fetchProfile();
-
-    const savedPrefs = localStorage.getItem("user_preferences");
-    if (savedPrefs) {
-      const prefs = JSON.parse(savedPrefs);
-      const isDark = prefs.darkMode !== undefined ? prefs.darkMode : true;
-      setCurrency(prefs.currency || "USD");
-      setDarkMode(isDark);
-      setShowGitHub(prefs.showGitHub !== undefined ? prefs.showGitHub : true);
-      setNotifications(prefs.notifications || { account: true, projects: true, marketing: false });
-      applyTheme(isDark);
-    }
-  }, [user]);
-
-  useEffect(() => { setLocalName(fullName); }, [fullName]);
-
-  function showMessage(text: string, type: "success" | "error") {
-    setMessage({ text, type });
-    setTimeout(() => setMessage({ text: "", type: "" }), 3000);
-  }
-
-  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file || !user) return;
-    if (file.size > 2 * 1024 * 1024) { showMessage("File must be under 2MB.", "error"); return; }
-    setUploadingPhoto(true);
-    const fileExt = file.name.split(".").pop();
-    const filePath = `avatars/${user.id}.${fileExt}`;
-    const { error: uploadError } = await supabase.storage.from("avatars").upload(filePath, file, { upsert: true });
-    if (uploadError) { showMessage(uploadError.message, "error"); setUploadingPhoto(false); return; }
-    const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(filePath);
-    const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`;
-    await supabase.from("profiles").upsert({ id: user.id, avatar_url: publicUrl, updated_at: new Date().toISOString() });
-    setAvatarUrl(publicUrl);
-    showMessage("Photo updated!", "success");
-    setUploadingPhoto(false);
-  }
-
-  async function handleUpdateProfile(e: React.FormEvent) {
+    setName(fullName);
+    setSavedName(fullName);
+  }, [fullName]);
+  useEffect(() => {
+    setMobileHome(!validSection(param));
+  }, [param]);
+  useEffect(() => {
+    if (!userId) return;
+    let alive = true;
+    supabase
+      .from("profiles")
+      .select("preferred_currency")
+      .eq("id", userId)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (!alive) return;
+        let fallback: string | null = null;
+        try {
+          fallback = JSON.parse(localStorage.getItem("user_preferences") || "{}").currency;
+        } catch {
+          /* ignore old malformed preference */
+        }
+        const next = validCurrency(data?.preferred_currency)
+          ? data.preferred_currency
+          : validCurrency(fallback)
+            ? fallback
+            : "USD";
+        setCurrency(next);
+        setSavedCurrency(validCurrency(data?.preferred_currency) ? data.preferred_currency : "USD");
+        setCurrencyLoading(false);
+        if (error) notify("error", "Could not load currency preference.");
+      });
+    return () => {
+      alive = false;
+    };
+  }, [userId]);
+  const open = (id: Section) => {
+    navigate(`/settings?section=${id}`);
+    setMobileHome(false);
+  };
+  const back = () => {
+    navigate("/settings");
+    setMobileHome(true);
+  };
+  async function saveName(e: React.FormEvent) {
     e.preventDefault();
-    if (!user) return;
-    setLoading(true);
-    const { error } = await supabase.from("profiles").upsert({ id: user.id, full_name: localName, bio, updated_at: new Date().toISOString() });
-    setLoading(false);
-    if (error) { showMessage(error.message, "error"); } else { setFullName(localName); showMessage("Profile updated successfully!", "success"); }
-  }
-
-  async function handleChangePassword(e: React.FormEvent) {
-    e.preventDefault();
-    if (newPassword !== confirmNewPassword) { showMessage("New passwords do not match.", "error"); return; }
-    if (newPassword.length < 6) { showMessage("Password must be at least 6 characters.", "error"); return; }
-    setLoading(true);
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
-    setLoading(false);
-    if (error) { showMessage(error.message, "error"); } else { showMessage("Password updated successfully!", "success"); setNewPassword(""); setConfirmNewPassword(""); }
-  }
-
-  function handleSavePreferences() {
-    const prefs = { currency, darkMode, showGitHub, notifications };
-    localStorage.setItem("user_preferences", JSON.stringify(prefs));
-    applyTheme(darkMode);
-    showMessage("Preferences saved!", "success");
-  }
-
-  async function handleAddCategory() {
-    if (!newCatName.trim()) { setCatError("Name is required."); return; }
-    if (categories.some((c) => c.name.toLowerCase() === newCatName.trim().toLowerCase())) {
-      setCatError("A category with this name already exists.");
+    const next = name.trim();
+    if (!next || next.length > 80) {
+      setNameError("Enter a name between 1 and 80 characters.");
       return;
     }
-    setCatLoading(true);
-    setCatError("");
-    const result = await createCategory(newCatName.trim(), newCatColor);
-    setCatLoading(false);
-    if (!result) { setCatError("Failed to create category."); return; }
-    setNewCatName("");
-    setNewCatColor(PRESET_COLORS[0]);
+    if (!user || savingName || next === savedName) return;
+    setSavingName(true);
+    setNameError("");
+    const { error } = await supabase
+      .from("profiles")
+      .upsert({ id: user.id, full_name: next, updated_at: new Date().toISOString() });
+    setSavingName(false);
+    if (error) {
+      setNameError("Your name could not be saved. Try again.");
+      notify("error", "Could not save profile.");
+      return;
+    }
+    setName(next);
+    setSavedName(next);
+    setFullName(next);
+    notify("success", "Profile updated.");
   }
-
-  async function handleUpdateCategory(id: string) {
-    if (!editingCatName.trim()) return;
-    setCatLoading(true);
-    await updateCategory(id, editingCatName, editingCatColor);
-    setCatLoading(false);
-    setEditingCatId(null);
+  async function upload(file?: File) {
+    if (!file || !user || uploading) return;
+    if (
+      !["image/jpeg", "image/png", "image/webp"].includes(file.type) ||
+      file.size > 2 * 1024 * 1024
+    ) {
+      notify("error", "Choose a JPG, PNG, or WebP image under 2 MB.");
+      return;
+    }
+    const objectUrl = URL.createObjectURL(file);
+    setPreview(objectUrl);
+    setUploading(true);
+    setPhotoStatus("Uploading photo…");
+    const ext = file.type === "image/jpeg" ? "jpg" : file.type === "image/png" ? "png" : "webp";
+    const path = `avatars/${user.id}.${ext}`;
+    const { error: uploadError } = await supabase.storage
+      .from("avatars")
+      .upload(path, file, { upsert: true, contentType: file.type });
+    if (uploadError) {
+      notify("error", "Photo upload failed. Try again.");
+    } else {
+      setPhotoStatus("Saving photo…");
+      const { data } = supabase.storage.from("avatars").getPublicUrl(path);
+      const nextUrl = `${data.publicUrl}?t=${Date.now()}`;
+      const { error } = await supabase
+        .from("profiles")
+        .upsert({ id: user.id, avatar_url: nextUrl, updated_at: new Date().toISOString() });
+      if (error) notify("error", "Photo could not be saved. Try again.");
+      else {
+        setAvatarUrl(nextUrl);
+        const old = avatarUrl.match(/\/storage\/v1\/object\/public\/avatars\/(avatars\/[^?]+)/);
+        if (old && old[1].startsWith(`avatars/${user.id}.`) && old[1] !== path) {
+          const { error: cleanupError } = await supabase.storage.from("avatars").remove([old[1]]);
+          notify(
+            cleanupError ? "error" : "success",
+            cleanupError
+              ? "Photo updated, but its old file could not be removed."
+              : "Photo updated.",
+          );
+        } else notify("success", "Photo updated.");
+      }
+    }
+    setUploading(false);
+    setPhotoStatus("");
+    URL.revokeObjectURL(objectUrl);
+    setPreview("");
+    if (fileRef.current) fileRef.current.value = "";
   }
-
-  async function handleDeleteCategory(id: string) {
-    setCatLoading(true);
-    await deleteCategory(id);
-    setCatLoading(false);
-    setDeletingCatId(null);
+  async function removePhoto() {
+    if (!user || !avatarUrl || uploading) return;
+    setUploading(true);
+    setPhotoStatus("Removing photo…");
+    const { error } = await supabase
+      .from("profiles")
+      .update({ avatar_url: null, updated_at: new Date().toISOString() })
+      .eq("id", user.id);
+    if (error) notify("error", "Could not remove photo.");
+    else {
+      setAvatarUrl("");
+      const match = avatarUrl.match(/\/storage\/v1\/object\/public\/avatars\/(avatars\/[^?]+)/);
+      if (match && match[1].startsWith(`avatars/${user.id}.`)) {
+        const { error: cleanupError } = await supabase.storage.from("avatars").remove([match[1]]);
+        notify(
+          cleanupError ? "error" : "success",
+          cleanupError
+            ? "Photo removed from your profile, but its stored file could not be removed."
+            : "Photo removed.",
+        );
+      } else notify("success", "Photo removed.");
+    }
+    setUploading(false);
+    setPhotoStatus("");
   }
-
+  function failPassword(field: "current" | "new" | "confirm", message: string) {
+    setPasswordErrorField(field);
+    setPasswordError(message);
+    setPasswordShakeToken(value => value + 1);
+  }
+  function clearPasswordError(field: "current" | "new" | "confirm") {
+    if (passwordErrorField === field) { setPasswordError(""); setPasswordErrorField(""); }
+  }
+  async function changePassword(e: React.FormEvent) {
+    e.preventDefault();
+    setPasswordError("");
+    if (!currentPassword) { failPassword("current", "Enter your current password."); return; }
+    if (!newPassword) { failPassword("new", "Enter a new password."); return; }
+    if (!confirmPassword) { failPassword("confirm", "Confirm your new password."); return; }
+    if (newPassword === currentPassword) {
+      failPassword("new", "Choose a different new password.");
+      return;
+    }
+    if (newPassword.length < 6) {
+      failPassword("new", "Use at least 6 characters.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      failPassword("confirm", "New passwords do not match.");
+      return;
+    }
+    if (!user?.email || savingPassword) return;
+    setSavingPassword(true);
+    const { error: authError } = await supabase.auth.signInWithPassword({
+      email: user.email,
+      password: currentPassword,
+    });
+    if (authError) {
+      failPassword("current", "Current password is incorrect.");
+      setSavingPassword(false);
+      return;
+    }
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword,
+      current_password: currentPassword,
+    });
+    setSavingPassword(false);
+    if (error) {
+      failPassword("new", "Password could not be updated. Check the password requirements and try again.");
+      notify("error", "Could not update password.");
+      return;
+    }
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setPasswordErrorField("");
+    notify("success", "Password updated.");
+  }
+  async function saveCurrency() {
+    if (!user || savingCurrency || currency === savedCurrency) return;
+    setSavingCurrency(true);
+    const { error } = await supabase
+      .from("profiles")
+      .upsert({ id: user.id, preferred_currency: currency, updated_at: new Date().toISOString() });
+    setSavingCurrency(false);
+    if (error) {
+      notify("error", "Could not save currency preference.");
+      return;
+    }
+    setSavedCurrency(currency);
+    localStorage.setItem("user_preferences", JSON.stringify({ currency }));
+    window.dispatchEvent(new Event("f-dash:preferences-changed"));
+    notify("success", "Currency preference saved.");
+  }
+  function openEditor(id: string) {
+    const item = categories.find((x) => x.id === id);
+    setEditor(id);
+    setIndustryName(item?.name ?? "");
+    setIndustryColor(item?.color ?? swatches[0]);
+    setIndustryError("");
+  }
+  async function saveIndustry(e: React.FormEvent) {
+    e.preventDefault();
+    const next = industryName.trim();
+    if (!next || next.length > 60) {
+      setIndustryError("Enter a name between 1 and 60 characters.");
+      return;
+    }
+    if (!validColor(industryColor)) {
+      setIndustryError("Choose a valid color.");
+      return;
+    }
+    if (
+      categories.some(
+        (x) => x.id !== editor && x.name.toLocaleLowerCase() === next.toLocaleLowerCase(),
+      )
+    ) {
+      setIndustryError("An industry with this name already exists.");
+      return;
+    }
+    if (!editor || industryBusy) return;
+    setIndustryBusy(true);
+    const success =
+      editor === "new"
+        ? Boolean(await createCategory(next, industryColor))
+        : await updateCategory(editor, next, industryColor);
+    setIndustryBusy(false);
+    if (!success) {
+      setIndustryError("Could not save this industry. Try again.");
+      return;
+    }
+    notify("success", editor === "new" ? "Industry created." : "Industry updated.");
+    setEditor(null);
+  }
+  async function deleteIndustry() {
+    if (!deleteId || industryBusy || (counts.get(deleteId) ?? 0) > 0) return;
+    setIndustryBusy(true);
+    const success = await deleteCategory(deleteId);
+    setIndustryBusy(false);
+    if (!success) {
+      notify("error", "Could not delete this industry.");
+      return;
+    }
+    setDeleteId(null);
+    notify("success", "Industry deleted.");
+  }
+  async function clearData() {
+    if (!clearPassword || clearing || clearStep !== 2) return;
+    setClearing(true);
+    setClearError("");
+    const { data, error } = await supabase.functions.invoke("clear-application-data", {
+      body: { password: clearPassword },
+    });
+    setClearing(false);
+    if (error || !data?.cleared) {
+      const detail = error?.context instanceof Response
+        ? await error.context.json().catch(() => null)
+        : data;
+      setClearError(
+        typeof detail?.error === "string"
+          ? detail.error
+          : "Data could not be cleared. Check your password and try again.",
+      );
+      return;
+    }
+    setClearPassword("");
+    setClearStep(0);
+    await fetchAll();
+    window.dispatchEvent(new Event("f-dash:data-cleared"));
+    notify("success", "Application data cleared. Your account remains active.");
+  }
+  const closeClear = () => {
+    if (clearing) return;
+    setClearStep(0);
+    setClearPassword("");
+    setClearError("");
+  };
   return (
-    <div className="page">
-      <div className="settings-page">
-        <aside className="settings-nav">
-          <ul className="settings-nav__list">
-            {(
-              [
-                { id: "general", label: "General", Icon: UserIcon },
-                { id: "security", label: "Security", Icon: LockIcon },
-                { id: "preferences", label: "Preferences", Icon: GearIcon },
-                { id: "categories", label: "Categories", Icon: TagIcon },
-              ] as { id: TabType; label: string; Icon: () => React.ReactElement }[]
-            ).map(({ id, label, Icon }) => (
-              <li key={id}>
-                <button
-                  className={`settings-nav__btn${activeTab === id ? " settings-nav__btn--active" : ""}`}
-                  onClick={() => setActiveTab(id)}
-                >
-                  <Icon />
-                  {label}
-                </button>
-              </li>
+    <div className="settings-root">
+      <div className="settings-wrap">
+        <div className="settings-layout">
+          <nav
+            ref={railRef}
+            className={`settings-rail${railHover.visible ? " is-hovering" : ""}`}
+            aria-label="Settings sections"
+            onPointerLeave={() => setRailHover((previous) => ({ ...previous, visible: false }))}
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget))
+                setRailHover((previous) => ({ ...previous, visible: false }));
+            }}
+          >
+            <span className="settings-rail__label">Personal settings</span>
+            <span
+              className="settings-rail__hover"
+              style={{
+                height: railHover.height,
+                transform: `translateY(${railHover.y}px)`,
+                opacity: railHover.visible ? 1 : 0,
+              }}
+              aria-hidden="true"
+            />
+            {sections.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => open(item.id)}
+                className={active === item.id ? "is-active" : ""}
+                aria-current={active === item.id ? "page" : undefined}
+                onPointerEnter={(event) => {
+                  if (event.pointerType !== "touch") moveRailHover(event.currentTarget);
+                }}
+                onFocus={(event) => moveRailHover(event.currentTarget)}
+              >
+                <item.icon size={17} strokeWidth={1.9} />
+                <span>{item.label}</span>
+                <ChevronRight size={15} className="settings-rail__chevron" />
+              </button>
             ))}
-          </ul>
-        </aside>
-
-        <main className="settings-content">
-          {message.text && (
-            <div className={`modal-alert ${message.type === "error" ? "modal-alert--error" : "modal-alert--success"} settings-message`}>
-              {message.text}
-            </div>
-          )}
-
-          {activeTab === "general" && (
-            <div className="settings-section">
-              <div className="settings-card">
-                <h3 className="settings-card__title">Profile Information</h3>
-                <p className="settings-card__desc">Update your photo and personal details.</p>
-                <div className="profile-upload">
-                  <div className="profile-upload__avatar" onClick={() => fileInputRef.current?.click()} title="Click to change photo">
-                    {avatarUrl ? <img src={avatarUrl} alt="Avatar" /> : localName.charAt(0).toUpperCase() || "N"}
-                    <div className="profile-upload__overlay"><CameraIcon /></div>
-                  </div>
-                  <div>
-                    <button type="button" className="btn btn--outline btn--sm" onClick={() => fileInputRef.current?.click()} disabled={uploadingPhoto}>
-                      {uploadingPhoto ? "Uploading..." : "Change Photo"}
-                    </button>
-                    <p className="profile-upload__hint">JPG, GIF or PNG. 2MB Max.</p>
-                    <input ref={fileInputRef} type="file" accept="image/*" className="visually-hidden" onChange={handlePhotoUpload} />
-                  </div>
-                </div>
-                <form onSubmit={handleUpdateProfile} className="modal-form">
-                  <div className="form-group">
-                    <label>Full Name</label>
-                    <input type="text" value={localName} onChange={(e) => setLocalName(e.target.value)} placeholder="Enter your name" />
-                  </div>
-                  <div className="form-group">
-                    <label>Email Address</label>
-                    <input type="email" value={user?.email || ""} disabled className="input--disabled" />
-                  </div>
-                  <div className="form-group">
-                    <label>Bio</label>
-                    <textarea rows={4} value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Tell us about yourself..." />
-                  </div>
-                  <button type="submit" className="btn btn--primary" disabled={loading}>{loading ? "Saving..." : "Save Changes"}</button>
-                </form>
-              </div>
-            </div>
-          )}
-
-          {activeTab === "security" && (
-            <div className="settings-section">
-              <div className="settings-card">
-                <h3 className="settings-card__title">Change Password</h3>
-                <p className="settings-card__desc">Manage your password and account security.</p>
-                <form onSubmit={handleChangePassword} className="modal-form">
-                  <div className="form-group">
-                    <label>New Password</label>
-                    <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="••••••••" required minLength={6} />
-                  </div>
-                  <div className="form-group">
-                    <label>Confirm New Password</label>
-                    <input type="password" value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)} placeholder="••••••••" required />
-                  </div>
-                  <button type="submit" className="btn btn--primary" disabled={loading}>{loading ? "Updating..." : "Update Password"}</button>
-                </form>
-              </div>
-              <div className="settings-card">
-                <h3 className="settings-card__title">Two-Factor Authentication</h3>
-                <div className="toggle-group">
-                  <div className="toggle-group__info">
-                    <span className="toggle-group__label">Enable 2FA</span>
-                    <span className="toggle-group__desc">Add an extra layer of security to your account.</span>
-                  </div>
-                  <label className="switch">
-                    <input type="checkbox" checked={is2FAEnabled} onChange={(e) => setIs2FAEnabled(e.target.checked)} />
-                    <span className="slider" />
-                  </label>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === "preferences" && (
-            <div className="settings-section">
-              <div className="settings-card">
-                <h3 className="settings-card__title">Application Preferences</h3>
-                <p className="settings-card__desc">Customize your dashboard experience.</p>
-                <div className="form-group">
-                  <label>Primary Currency</label>
-                  <select value={currency} onChange={(e) => setCurrency(e.target.value)}>
-                    <option value="USD">USD ($)</option>
-                    <option value="EUR">EUR (€)</option>
-                    <option value="GEL">GEL (₾)</option>
-                  </select>
-                  <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)", marginTop: "6px", lineHeight: "1.5" }}>
-                    Note: This only changes the currency symbol displayed across the dashboard. It does not convert or recalculate any of your existing amounts.
-                  </p>
-                </div>
-                <div className="toggle-group">
-                  <div className="toggle-group__info">
-                    <span className="toggle-group__label">Dark Mode</span>
-                    <span className="toggle-group__desc">Switch between dark and light themes.</span>
-                  </div>
-                  <label className="switch">
-                    <input type="checkbox" checked={darkMode} onChange={(e) => setDarkMode(e.target.checked)} />
-                    <span className="slider" />
-                  </label>
-                </div>
-                <div className="toggle-group">
-                  <div className="toggle-group__info">
-                    <span className="toggle-group__label">GitHub Integration</span>
-                    <span className="toggle-group__desc">Show GitHub heatmap and activity sections across the dashboard.</span>
-                  </div>
-                  <label className="switch">
-                    <input type="checkbox" checked={showGitHub} onChange={(e) => setShowGitHub(e.target.checked)} />
-                    <span className="slider" />
-                  </label>
-                </div>
-                <div className="notifications-section">
-                  <h4 className="notifications-section__title">Email Notifications</h4>
-                  <div className="toggle-group">
-                    <div className="toggle-group__info">
-                      <span className="toggle-group__label">Account Updates</span>
-                      <span className="toggle-group__desc">Security alerts and billing information.</span>
-                    </div>
-                    <label className="switch">
-                      <input type="checkbox" checked={notifications.account} onChange={(e) => setNotifications({ ...notifications, account: e.target.checked })} />
-                      <span className="slider" />
-                    </label>
-                  </div>
-                  <div className="toggle-group">
-                    <div className="toggle-group__info">
-                      <span className="toggle-group__label">Project Milestones</span>
-                      <span className="toggle-group__desc">Notifications about project progress and deadlines.</span>
-                    </div>
-                    <label className="switch">
-                      <input type="checkbox" checked={notifications.projects} onChange={(e) => setNotifications({ ...notifications, projects: e.target.checked })} />
-                      <span className="slider" />
-                    </label>
-                  </div>
-                </div>
-                <button onClick={handleSavePreferences} className="btn btn--primary settings-save-btn">Save Preferences</button>
-              </div>
-            </div>
-          )}
-
-          {activeTab === "categories" && (
-            <div className="settings-section">
-              <div className="settings-card">
-                <h3 className="settings-card__title">Client Categories</h3>
-                <p className="settings-card__desc">Create and manage categories to organise your clients.</p>
-
-                <div className="cat-settings__add">
-                  <div className="cat-settings__add-row">
-                    <input
-                      type="text"
-                      placeholder="New category name..."
-                      value={newCatName}
-                      onChange={(e) => { setNewCatName(e.target.value); setCatError(""); }}
-                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddCategory(); } }}
-                      className="cat-settings__name-input"
-                    />
-                    <div className="cat-settings__colors">
-                      {PRESET_COLORS.map((color) => (
-                        <button
-                          key={color}
-                          type="button"
-                          className={`cat-settings__color-dot${newCatColor === color ? " cat-settings__color-dot--active" : ""}`}
-                          style={{ background: color }}
-                          onClick={() => setNewCatColor(color)}
-                          aria-label={color}
-                        />
-                      ))}
-                    </div>
-                    <button
-                      type="button"
-                      className="btn btn--primary btn--sm"
-                      onClick={handleAddCategory}
-                      disabled={catLoading || !newCatName.trim()}
-                    >
-                      Add
-                    </button>
-                  </div>
-                  {catError && <div className="cat-settings__error">{catError}</div>}
-                </div>
-
-                {categories.length === 0 ? (
-                  <div className="cat-settings__empty">No categories yet. Add one above.</div>
-                ) : (
-                  <ul className="cat-settings__list">
-                    {categories.map((cat) => {
-                      const count = getClientsCountForCategory(cat.id);
-                      const isEditing = editingCatId === cat.id;
-                      const isConfirmingDelete = deletingCatId === cat.id;
-
-                      return (
-                        <li key={cat.id} className="cat-settings__item">
-                          {isConfirmingDelete ? (
-                            <div className="cat-settings__delete-confirm">
+          </nav>
+          <div className="settings-mobile-home">
+            <p>Choose a section</p>
+            {sections.map((item) => (
+              <button type="button" key={item.id} onClick={() => open(item.id)}>
+                <span className="settings-mobile-home__icon">
+                  <item.icon size={19} />
+                </span>
+                <span className="settings-mobile-home__text">
+                  <strong>{item.label}</strong>
+                </span>
+                <ChevronRight size={19} />
+              </button>
+            ))}
+          </div>
+          <main className={`settings-main${mobileHome ? " settings-main--home" : ""}`}>
+            <button className="settings-back" type="button" onClick={back}>
+              <ChevronLeft size={18} /> Back to Settings
+            </button>
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={active}
+                initial={reduceMotion ? false : { opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={reduceMotion ? undefined : { opacity: 0, y: -4 }}
+                transition={{ duration: 0.19 }}
+              >
+                {active === "account" && (
+                  <div className="settings-stack">
+                    {profileLoading ? (
+                      <Skeleton />
+                    ) : (
+                      <>
+                        <section className="settings-panel settings-identity">
+                          <div className="settings-avatar">
+                            {preview || avatarUrl ? (
+                              <img src={preview || avatarUrl} alt="Your profile" />
+                            ) : (
                               <span>
-                                Delete <strong>{cat.name}</strong>?
-                                {count > 0 && ` It's assigned to ${count} client${count !== 1 ? "s" : ""}.`}
+                                {(fullName || user?.email || "U").charAt(0).toUpperCase()}
                               </span>
-                              <div style={{ display: "flex", gap: "8px" }}>
-                                <button type="button" className="btn btn--outline btn--sm" onClick={() => setDeletingCatId(null)}>Cancel</button>
-                                <button type="button" className="btn btn--sm btn--confirm btn--confirm-danger" onClick={() => handleDeleteCategory(cat.id)} disabled={catLoading}>
-                                  {catLoading ? "..." : "Delete"}
+                            )}
+                          </div>
+                          <div className="settings-identity__copy">
+                            <h3>Profile photo</h3>
+                            <p>Make your workspace feel like yours.</p>
+                            <div className="settings-inline-actions">
+                              <button
+                                type="button"
+                                className="settings-button settings-button--secondary"
+                                onClick={() => fileRef.current?.click()}
+                                disabled={uploading}
+                              >
+                                <ImagePlus size={16} /> {uploading ? "Working…" : "Upload photo"}
+                              </button>
+                              {avatarUrl && (
+                                <button
+                                  type="button"
+                                  className="settings-text-button"
+                                  onClick={() => void removePhoto()}
+                                  disabled={uploading}
+                                >
+                                  Remove photo
                                 </button>
-                              </div>
+                              )}
                             </div>
-                          ) : isEditing ? (
-                            <div className="cat-settings__edit-row">
+                            <small>JPG, PNG, or WebP · up to 2 MB</small>
+                            {photoStatus && <p role="status">{photoStatus}</p>}
+                          </div>
+                          <input
+                            ref={fileRef}
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            hidden
+                            onChange={(e) => void upload(e.target.files?.[0])}
+                          />
+                        </section>
+                        <form className="settings-panel settings-form" onSubmit={saveName}>
+                          <div className="settings-panel__heading">
+                            <h3>Personal information</h3>
+                            <p>Your name appears throughout F-Dash.</p>
+                          </div>
+                          <div className="settings-fields">
+                            <label className="settings-field">
+                              <span>Full name</span>
                               <input
-                                type="text"
-                                value={editingCatName}
-                                onChange={(e) => setEditingCatName(e.target.value)}
-                                onKeyDown={(e) => { if (e.key === "Enter") handleUpdateCategory(cat.id); if (e.key === "Escape") setEditingCatId(null); }}
-                                autoFocus
-                                className="cat-settings__name-input"
+                                value={name}
+                                maxLength={80}
+                                onChange={(e) => {
+                                  setName(e.target.value);
+                                  setNameError("");
+                                }}
+                                autoComplete="name"
                               />
-                              <div className="cat-settings__colors">
-                                {PRESET_COLORS.map((color) => (
-                                  <button
-                                    key={color}
-                                    type="button"
-                                    className={`cat-settings__color-dot${editingCatColor === color ? " cat-settings__color-dot--active" : ""}`}
-                                    style={{ background: color }}
-                                    onClick={() => setEditingCatColor(color)}
-                                    aria-label={color}
-                                  />
-                                ))}
+                              {nameError && <em role="alert">{nameError}</em>}
+                            </label>
+                            <div className="settings-field">
+                              <span>Email address</span>
+                              <div className="settings-readonly">
+                                {user?.email ?? "—"} <LockKeyhole size={15} />
                               </div>
-                              <button type="button" className="btn btn--primary btn--sm" onClick={() => handleUpdateCategory(cat.id)} disabled={catLoading}>Save</button>
-                              <button type="button" className="btn btn--outline btn--sm" onClick={() => setEditingCatId(null)}>Cancel</button>
+                              <small>Managed by your account login</small>
                             </div>
-                          ) : (
-                            <>
-                              <div className="cat-settings__item-left">
-                                <span className="cat-settings__item-dot" style={{ background: cat.color }} />
-                                <span className="cat-settings__item-name">{cat.name}</span>
-                                <span className="cat-settings__item-count">{count} client{count !== 1 ? "s" : ""}</span>
-                              </div>
-                              <div className="cat-settings__item-actions">
-                                <button
-                                  type="button"
-                                  className="action-btn action-btn--edit"
-                                  onClick={() => { setEditingCatId(cat.id); setEditingCatName(cat.name); setEditingCatColor(cat.color); }}
-                                  title="Edit"
-                                >
-                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                                  </svg>
-                                </button>
-                                <button
-                                  type="button"
-                                  className="action-btn action-btn--delete"
-                                  onClick={() => setDeletingCatId(cat.id)}
-                                  title="Delete"
-                                >
-                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <polyline points="3 6 5 6 21 6" />
-                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                                  </svg>
-                                </button>
-                              </div>
-                            </>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ul>
+                          </div>
+                          <div className="settings-actions">
+                            <button
+                              className="settings-button settings-button--primary"
+                              disabled={name.trim() === savedName || !name.trim() || savingName}
+                            >
+                              {savingName ? "Saving…" : "Save changes"}
+                            </button>
+                          </div>
+                        </form>
+                      </>
+                    )}
+                  </div>
                 )}
+                {active === "security" && (
+                  <div className="settings-stack settings-security">
+                    <section className="settings-panel settings-form">
+                      <div className="settings-panel__heading">
+                        <h3>Change password</h3>
+                        <p>Choose a unique password to protect your account.</p>
+                      </div>
+                      <form onSubmit={changePassword}>
+                        <div className="settings-fields">
+                          <PasswordField
+                            label="Current password"
+                            value={currentPassword}
+                            change={value => { setCurrentPassword(value); clearPasswordError("current"); }}
+                            autoComplete="current-password"
+                            error={passwordErrorField === "current" ? passwordError : undefined}
+                            shakeToken={passwordErrorField === "current" ? passwordShakeToken : 0}
+                          />
+                          <PasswordField
+                            label="New password"
+                            value={newPassword}
+                            change={value => { setNewPassword(value); clearPasswordError("new"); }}
+                            autoComplete="new-password"
+                            error={passwordErrorField === "new" ? passwordError : undefined}
+                            shakeToken={passwordErrorField === "new" ? passwordShakeToken : 0}
+                          />
+                          <PasswordField
+                            label="Confirm new password"
+                            value={confirmPassword}
+                            change={value => { setConfirmPassword(value); clearPasswordError("confirm"); }}
+                            autoComplete="new-password"
+                            error={passwordErrorField === "confirm" ? passwordError : undefined}
+                            shakeToken={passwordErrorField === "confirm" ? passwordShakeToken : 0}
+                          />
+                        </div>
+                        <PasswordStrength password={newPassword} guidance />
+                        <div className="settings-actions">
+                          <button
+                            className="settings-button settings-button--primary"
+                            disabled={savingPassword}
+                          >
+                            {savingPassword ? "Updating…" : "Update password"}
+                          </button>
+                        </div>
+                      </form>
+                    </section>
+                    <section className="settings-panel settings-danger">
+                      <div>
+                        <h3>Clear application data</h3>
+                        <p>
+                          Permanently remove saved business, finance, project, and productivity
+                          data. Your account, profile, and GitHub connection remain.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        className="settings-button settings-button--danger-outline"
+                        onClick={() => setClearStep(1)}
+                      >
+                        Clear all data
+                      </button>
+                    </section>
+                  </div>
+                )}
+                {active === "preferences" && (
+                  <section className="settings-panel settings-form">
+                    <div className="settings-panel__heading">
+                      <h3>Currency preferences</h3>
+                      <p>Choose how converted totals appear across your workspace.</p>
+                    </div>
+                    {currencyLoading ? (
+                      <Skeleton rows={1} />
+                    ) : (
+                      <>
+                        <label className="settings-field settings-currency">
+                          <span>Primary currency</span>
+                          <select
+                            value={currency}
+                            onChange={(e) => setCurrency(e.target.value as Currency)}
+                          >
+                            {currencies.map((x) => (
+                              <option key={x.code} value={x.code}>
+                                {x.code} · {x.name} ({x.symbol})
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <p className="settings-note">
+                          Financial totals use recorded currencies and available exchange rates.
+                          Original amounts and invoice currencies stay intact.
+                        </p>
+                        <div className="settings-actions">
+                          <button
+                            className="settings-button settings-button--primary"
+                            type="button"
+                            disabled={savingCurrency || currency === savedCurrency}
+                            onClick={() => void saveCurrency()}
+                          >
+                            {savingCurrency ? "Saving…" : "Save preferences"}
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </section>
+                )}
+                {active === "industries" && (
+                  <section className="settings-panel settings-industries">
+                    <div className="settings-industries__heading">
+                      <div>
+                        <h3>Client industries</h3>
+                        <p>Classify your clients with a name and color.</p>
+                      </div>
+                      <button
+                        type="button"
+                        className="settings-button settings-button--primary"
+                        onClick={() => openEditor("new")}
+                      >
+                        Add industry
+                      </button>
+                    </div>
+                    <div className="settings-search">
+                      <Seek width={280} height={39} ariaLabel="Search industries" placeholder="Search industries" value={search} onChange={setSearch} />
+                      {search && (
+                        <button
+                          type="button"
+                          onClick={() => setSearch("")}
+                          aria-label="Clear search"
+                        >
+                          <X size={16} />
+                        </button>
+                      )}
+                    </div>
+                    {industriesLoading ? (
+                      <Skeleton rows={3} />
+                    ) : filtered.length ? (
+                      <ul className="settings-industry-list">
+                        {filtered.map((x) => (
+                          <li key={x.id}>
+                            <span
+                              className="settings-industry-color"
+                              style={{ background: validColor(x.color) ? x.color : swatches[0] }}
+                            />
+                            <strong title={x.name}>{x.name}</strong>
+                            <span className="settings-industry-count">
+                              {counts.get(x.id) ?? 0} client
+                              {(counts.get(x.id) ?? 0) === 1 ? "" : "s"}
+                            </span>
+                            <div className="settings-industry-actions">
+                              <button
+                                type="button"
+                                onClick={() => openEditor(x.id)}
+                                aria-label={`Edit ${x.name}`}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setDeleteId(x.id)}
+                                aria-label={`Delete ${x.name}`}
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <div className="settings-empty">
+                        <Tags size={24} />
+                        <h4>{search ? "No matching industries" : "No industries yet"}</h4>
+                        <p>
+                          {search
+                            ? "Try a different search."
+                            : "Create your first industry to organize your clients."}
+                        </p>
+                        {!search && (
+                          <button
+                            type="button"
+                            className="settings-button settings-button--secondary"
+                            onClick={() => openEditor("new")}
+                          >
+                            Add industry
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </section>
+                )}
+              </motion.div>
+            </AnimatePresence>
+          </main>
+        </div>
+      </div>
+      {toast &&
+        createPortal(
+          <div className="app-toast-viewport" aria-label="Notifications">
+            <SwipeToast
+              key={toast.id}
+              kind={toast.kind}
+              message={toast.message}
+              onClose={() => setToast(null)}
+            />
+          </div>,
+          document.body,
+        )}
+      {editor && (
+        <Dialog
+          title={editor === "new" ? "Add industry" : "Edit industry"}
+          close={() => setEditor(null)}
+        >
+          <form className="settings-dialog__body" onSubmit={saveIndustry}>
+            <label className="settings-field">
+              <span>Industry name</span>
+              <input
+                value={industryName}
+                maxLength={60}
+                onChange={(e) => {
+                  setIndustryName(e.target.value);
+                  setIndustryError("");
+                }}
+                placeholder="e.g. Technology"
+              />
+            </label>
+            <div className="settings-field">
+              <span>Industry color</span>
+              <div className="settings-swatches">
+                {swatches.map((color) => (
+                  <button
+                    type="button"
+                    key={color}
+                    style={{ background: color }}
+                    className={
+                      industryColor.toLowerCase() === color.toLowerCase() ? "is-selected" : ""
+                    }
+                    onClick={() => setIndustryColor(color)}
+                    aria-label={`Choose ${color}`}
+                    aria-pressed={industryColor.toLowerCase() === color.toLowerCase()}
+                  />
+                ))}
+                <label
+                  className={`settings-custom-color${!swatches.some((color) => color.toLowerCase() === industryColor.toLowerCase()) ? " is-selected" : ""}`}
+                  title="Choose custom color"
+                >
+                  <Palette size={18} aria-hidden="true" />
+                  <input
+                    type="color"
+                    value={validColor(industryColor) ? industryColor : swatches[0]}
+                    onChange={(e) => setIndustryColor(e.target.value)}
+                    aria-label="Choose custom color"
+                  />
+                </label>
               </div>
             </div>
-          )}
-        </main>
-      </div>
+            <div className="settings-industry-preview">
+              <i style={{ background: industryColor }} />
+              <span>{industryName.trim() || "Industry preview"}</span>
+            </div>
+            {industryError && (
+              <p className="settings-error" role="alert">
+                {industryError}
+              </p>
+            )}
+            <div className="settings-dialog__actions">
+              <button
+                type="button"
+                className="settings-button settings-button--secondary"
+                onClick={() => setEditor(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="settings-button settings-button--primary"
+                disabled={industryBusy}
+              >
+                {industryBusy ? "Saving…" : "Save industry"}
+              </button>
+            </div>
+          </form>
+        </Dialog>
+      )}
+      {deleteId && (
+        <Dialog title="Delete industry?" close={() => setDeleteId(null)}>
+          <div className="settings-dialog__body">
+            <p>
+              {(counts.get(deleteId) ?? 0) > 0
+                ? `This industry is assigned to ${counts.get(deleteId)} client(s). Reassign or unassign those clients before deleting it.`
+                : "This industry has no assigned clients. Deleting it cannot be undone."}
+            </p>
+            <div className="settings-dialog__actions">
+              <button
+                className="settings-button settings-button--secondary"
+                onClick={() => setDeleteId(null)}
+              >
+                Cancel
+              </button>
+              {(counts.get(deleteId) ?? 0) === 0 && (
+                <button
+                  className="settings-button settings-button--danger"
+                  disabled={industryBusy}
+                  onClick={() => void deleteIndustry()}
+                >
+                  {industryBusy ? "Deleting…" : "Delete industry"}
+                </button>
+              )}
+            </div>
+          </div>
+        </Dialog>
+      )}
+      {clearStep > 0 && (
+        <Dialog
+          title={clearStep === 1 ? "Clear all application data?" : "This is your final chance"}
+          locked={clearing}
+          close={closeClear}
+        >
+          <div className="settings-dialog__body">
+            <p>
+              {clearStep === 1
+                ? "This permanently removes your clients, projects, finances, invoices, goals, and other saved dashboard records. Your account, GitHub connection, email, password, profile, and preferences remain intact."
+                : "Once confirmed, this data cannot be recovered. Enter your current password to authorize the operation."}
+            </p>
+            {clearStep === 2 && (
+              <label className="settings-field">
+                <span>Current password</span>
+                <input
+                  type="password"
+                  autoComplete="current-password"
+                  value={clearPassword}
+                  onChange={(e) => setClearPassword(e.target.value)}
+                />
+              </label>
+            )}
+            {clearError && (
+              <p className="settings-error" role="alert">
+                {clearError}
+              </p>
+            )}
+            <div className="settings-dialog__actions">
+              <button
+                type="button"
+                className="settings-button settings-button--secondary"
+                disabled={clearing}
+                onClick={() => (clearStep === 2 ? setClearStep(1) : closeClear())}
+              >
+                {clearStep === 2 ? "Go back" : "Cancel"}
+              </button>
+              {clearStep === 1 ? (
+                <button
+                  type="button"
+                  className="settings-button settings-button--danger-outline"
+                  onClick={() => setClearStep(2)}
+                >
+                  Continue
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="settings-button settings-button--danger"
+                  disabled={!clearPassword || clearing}
+                  onClick={() => void clearData()}
+                >
+                  {clearing ? "Clearing…" : "Permanently clear data"}
+                </button>
+              )}
+            </div>
+          </div>
+        </Dialog>
+      )}
     </div>
   );
 }

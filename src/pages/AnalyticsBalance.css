@@ -1,0 +1,22 @@
+.analytics-balance{position:relative;width:100%;border:1px solid #e1dced;border-radius:var(--balance-corner,20px);background:#fff;overflow:hidden;color:#211b3b;box-shadow:0 5px 18px #27187e08}
+.analytics-balance:first-child{background:#27187e;border-color:#27187e;color:#fff}
+.analytics-balance-sheet{position:relative;z-index:1;height:100%;min-height:126px;padding:17px 16px 15px;border-radius:inherit;background:inherit}
+.analytics-balance-label{display:flex;justify-content:space-between;align-items:center;gap:8px;color:#716a83;font-size:11px;font-weight:750}
+.analytics-balance:first-child .analytics-balance-label{color:#ddd6f7}
+.analytics-balance-main{display:flex;align-items:center;gap:12px;min-width:0;margin-top:13px}
+.analytics-balance-value{display:flex;flex:none;align-items:baseline;margin:0;font-size:clamp(23px,2.2vw,32px);font-weight:550;letter-spacing:-.03em;line-height:1.05;font-variant-numeric:tabular-nums;white-space:nowrap}
+.analytics-balance-value small{font-size:.67em;font-weight:500;opacity:.5}
+.analytics-balance-change{display:flex;align-items:baseline;gap:8px;min-height:19px;margin-top:9px;color:#777087;font-size:10px;white-space:nowrap;overflow:hidden}
+.analytics-balance-change strong{flex:none;color:#4935a5;font-size:11px}
+.analytics-balance-change[data-direction=down] strong{color:#ab4554}
+.analytics-balance-change[data-direction=up] strong{color:#147a59}
+.analytics-balance-change span{overflow:hidden;text-overflow:ellipsis}
+.analytics-balance:first-child .analytics-balance-change,.analytics-balance:first-child .analytics-balance-change strong{color:#e1dafa}
+.analytics-balance-plot{position:relative;flex:1;min-width:54px;max-width:120px;height:48px;margin-left:auto;color:#7664cc}
+.analytics-balance:first-child .analytics-balance-plot{color:#b7acee}
+.analytics-balance-plot svg{display:block;width:100%;height:100%;overflow:visible}
+.analytics-balance-plot path{fill:none;stroke:currentColor;stroke-width:2.1;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.analytics-balance-dot{position:absolute;width:9px;height:9px;margin:-4.5px 0 0 -4.5px;border-radius:50%;background:#fff;box-shadow:0 0 0 2px currentColor;pointer-events:none}
+.analytics-balance:first-child .analytics-balance-dot{background:#27187e}
+.analytics-balance-no-trend{display:grid;place-items:center;height:100%;color:#8b849a;font-size:10px}
+@media(max-width:520px){.analytics-balance-sheet{min-height:116px;padding:14px 11px 12px}.analytics-balance-main{gap:7px;margin-top:10px}.analytics-balance-value{font-size:clamp(19px,5vw,27px)}.analytics-balance-change{display:block;line-height:1.3}.analytics-balance-change span{display:block}.analytics-balance-plot{min-width:42px;height:40px}}

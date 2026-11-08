@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useCurrency } from "../../hooks/useCurrency";
+import type { Currency } from "../../lib/finance";
 import "./ClientPaymentsTable.css";
 
 export interface ClientPayment {
@@ -11,6 +11,8 @@ export interface ClientPayment {
   status: "Paid" | "Pending" | "Overdue";
   client_id?: string;
   description?: string;
+  currency?: Currency | null;
+  displayAmount?: string;
 }
 
 interface ClientPaymentsTableProps {
@@ -49,7 +51,6 @@ export default function ClientPaymentsTable({
   onEdit,
   onDelete,
 }: ClientPaymentsTableProps) {
-  const { symbol } = useCurrency();
   const [sortKey, setSortKey] = useState<SortKey>("dueDate");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [page, setPage] = useState(0);
@@ -129,10 +130,7 @@ export default function ClientPaymentsTable({
                     )}
                   </td>
                   <td className="td--amount">
-                    {symbol}{Number(p.amount).toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
+                    {p.displayAmount ?? `${Number(p.amount).toFixed(2)} · currency unknown`}
                   </td>
                   <td className="td--secondary">{p.dueDate}</td>
                   <td>

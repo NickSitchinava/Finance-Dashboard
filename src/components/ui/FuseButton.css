@@ -1,0 +1,9 @@
+.fuse-button{position:relative;display:inline-grid;height:var(--fb-h);border-radius:var(--fb-radius);background:var(--fb-bg);color:var(--fb-ink);font-family:inherit;font-size:var(--fb-fs);font-weight:650;overflow:hidden;isolation:isolate;touch-action:manipulation}
+.fuse-button__face{grid-area:1/1;display:inline-flex;align-items:center;justify-content:center;gap:8px;height:100%;padding:0 var(--fb-px);border:0;background:transparent;color:inherit;font:inherit;white-space:nowrap;cursor:pointer;transition:opacity var(--fb-fade) ease,visibility 0s linear var(--fb-fade),background-color .16s ease}
+.fuse-button__face:disabled{cursor:default}.fuse-button__idle,.fuse-button__undo{opacity:0;visibility:hidden}.fuse-button[data-phase='idle'] .fuse-button__idle,.fuse-button[data-phase='armed'] .fuse-button__undo{opacity:1;visibility:visible;transition-delay:0s}
+.fuse-button__face:hover:not(:disabled){background:color-mix(in srgb,var(--fb-ink) 7%,transparent)}.fuse-button__face:focus-visible{outline:2px solid var(--fb-fuse);outline-offset:-3px}
+.fuse-button__rim{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:0;transition:opacity var(--fb-fade) ease}.fuse-button[data-phase='armed'] .fuse-button__rim{opacity:1}
+.fuse-button__rim rect{x:calc(var(--fb-fuse-h)/2);y:calc(var(--fb-fuse-h)/2);width:calc(100% - var(--fb-fuse-h));height:calc(100% - var(--fb-fuse-h));rx:max(0px,calc(var(--fb-radius) - var(--fb-fuse-h)/2));fill:none;stroke:var(--fb-fuse);stroke-width:var(--fb-fuse-h);stroke-linecap:round;stroke-dasharray:1}
+.fuse-button__status{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+@media(prefers-reduced-motion:reduce){.fuse-button__face{transition:none}}
+@media(forced-colors:active){.fuse-button__rim rect{stroke:Highlight}}

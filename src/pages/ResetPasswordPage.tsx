@@ -1,192 +1,81 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
+import { Check, LockKeyhole } from "lucide-react";
+import { AuthShell } from "../components/auth/AuthShell";
+import { PasswordField } from "./LoginPage";
+import { PasswordStrength } from "../components/auth/PasswordStrength";
 import { supabase } from "../lib/supabase";
-import logo from "../assets/F-Dash — Logo v2.png";
-import "./LoginPage.css";
 
-function Shape({
-  width, height, rotate, top, left, right, bottom, color,
-}: {
-  width: number; height: number; rotate: number;
-  top?: string; left?: string; right?: string; bottom?: string; color: string;
-}) {
-  return (
-    <div
-      className="login-shape"
-      style={{
-        width, height,
-        transform: `rotate(${rotate}deg)`,
-        top, left, right, bottom,
-        background: `linear-gradient(to right, ${color}, transparent)`,
-      }}
-    />
-  );
-}
-
-type State = "loading" | "ready" | "done" | "error";
+type State = "checking" | "ready" | "done" | "error";
 
 export default function ResetPasswordPage() {
+  const [state, setState] = useState<State>(() => location.search.includes("error=") || location.hash.includes("error=") ? "error" : "checking");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState("");
-  const [state, setState] = useState<State>("loading");
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(() => location.search.includes("error=") || location.hash.includes("error=") ? "This reset link is invalid or has expired. Request a new one." : "");
   const navigate = useNavigate();
 
   useEffect(() => {
-    async function init() {
-      const hash = window.location.hash.substring(1); 
-      const params = new URLSearchParams(hash);
-      const accessToken = params.get("access_token");
-      const refreshToken = params.get("refresh_token");
-      const type = params.get("type");
-
-      if (!accessToken || !refreshToken || type !== "recovery") {
-        setState("error");
-        setErrorMsg("Invalid or expired reset link. Please request a new one.");
-        return;
-      }
-
-      // Set the session using the tokens from the URL
-      const { error } = await supabase.auth.setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken,
-      });
-
-      if (error) {
-        setState("error");
-        setErrorMsg("This reset link has expired. Please request a new one.");
-        return;
-      }
-
-      // Clean tokens from URL bar
-      window.history.replaceState(null, "", window.location.pathname);
-      setState("ready");
+    let active = true;
+    const hash = new URLSearchParams(location.hash.slice(1));
+    const query = new URLSearchParams(location.search);
+    const failed = hash.has("error") || query.has("error");
+    if (failed) {
+      history.replaceState(null, "", "/reset-password");
+      return;
     }
-
-    init();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (active && event === "PASSWORD_RECOVERY") setState("ready");
+    });
+    async function validateLink() {
+      const accessToken = hash.get("access_token");
+      const refreshToken = hash.get("refresh_token");
+      if (hash.get("type") === "recovery" && accessToken && refreshToken) {
+        const { error: authError } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+        if (!active) return;
+        history.replaceState(null, "", "/reset-password");
+        if (!authError) { setState("ready"); return; }
+      } else if (query.has("code")) {
+        const { error: authError } = await supabase.auth.exchangeCodeForSession(query.get("code")!);
+        if (!active) return;
+        history.replaceState(null, "", "/reset-password");
+        if (!authError) { setState("ready"); return; }
+      }
+      if (active) { setError("This reset link is invalid or has expired. Request a new one."); setState("error"); }
+    }
+    void validateLink();
+    return () => { active = false; subscription.unsubscribe(); };
   }, []);
 
-  async function handleReset(e: React.FormEvent) {
-    e.preventDefault();
-    setErrorMsg("");
-
-    if (password !== confirmPassword) {
-      setErrorMsg("Passwords do not match.");
-      return;
-    }
-    if (password.length < 6) {
-      setErrorMsg("Password must be at least 6 characters.");
-      return;
-    }
-
-    setLoading(true);
-    const { error } = await supabase.auth.updateUser({ password });
-    setLoading(false);
-
-    if (error) {
-      setErrorMsg(error.message);
-    } else {
-      setState("done");
-      await supabase.auth.signOut();
-      setTimeout(() => navigate("/login"), 3000);
-    }
+  async function submit(event: FormEvent) {
+    event.preventDefault(); if (busy) return;
+    setError("");
+    if (password.length < 6) { setError("Use at least 6 characters."); return; }
+    if (password !== confirm) { setError("Passwords do not match."); return; }
+    setBusy(true);
+    const { error: authError } = await supabase.auth.updateUser({ password });
+    setBusy(false);
+    if (authError) { setError(/weak password|password should/i.test(authError.message) ? "Choose a longer password and try again." : "We couldn't update your password. Request a new link and try again."); return; }
+    setState("done");
+    await supabase.auth.signOut();
   }
 
-  return (
-    <div className="login-page">
-      <div className="login-shapes">
-        <Shape width={600} height={140} rotate={12}  top="20%"    left="-5%"  color="rgba(232,123,58,0.18)" />
-        <Shape width={500} height={120} rotate={-15} top="70%"    right="-2%" color="rgba(232,123,58,0.13)" />
-        <Shape width={300} height={80}  rotate={-8}  bottom="10%" left="8%"   color="rgba(180,80,20,0.15)"  />
-        <Shape width={200} height={60}  rotate={20}  top="12%"    right="18%" color="rgba(232,123,58,0.12)" />
-        <Shape width={150} height={40}  rotate={-25} top="6%"     left="24%"  color="rgba(255,160,80,0.10)" />
-      </div>
-      <div className="login-ambient" />
-
-      <div className="login-card card">
-        <div className="login-card__header">
-          <div className="login-card__logo">
-            <img src={logo} alt="F-Dash Logo" />
-          </div>
-          <h2>Set New Password</h2>
-          <p>
-            {state === "loading" && "Verifying reset link..."}
-            {state === "ready" && "Enter your new password below"}
-            {state === "done" && "Password updated!"}
-            {state === "error" && "Something went wrong"}
-          </p>
-        </div>
-
-        {errorMsg && <div className="login-alert">{errorMsg}</div>}
-
-        {state === "loading" && (
-          <div className="login-sent">
-            <div className="auth-loading__spinner" style={{ margin: "0 auto" }} />
-          </div>
-        )}
-
-        {state === "ready" && (
-          <form className="login-form" onSubmit={handleReset}>
-            <div className="form-group">
-              <label htmlFor="new-password">New Password</label>
-              <input
-                id="new-password"
-                type="password"
-                required
-                minLength={6}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                autoFocus
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="confirm-password">Confirm New Password</label>
-              <input
-                id="confirm-password"
-                type="password"
-                required
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="••••••••"
-              />
-            </div>
-            <button
-              type="submit"
-              className="btn btn--primary login-submit"
-              disabled={loading}
-            >
-              {loading ? "Updating..." : "Update Password"}
-            </button>
-          </form>
-        )}
-
-        {state === "done" && (
-          <div className="login-sent">
-            <div className="login-sent__icon">
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--status-success)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-            </div>
-            <p className="login-sent__text">
-              Password updated successfully! Redirecting to sign in...
-            </p>
-          </div>
-        )}
-
-        {state === "error" && (
-          <div className="login-sent">
-            <button
-              type="button"
-              className="btn btn--outline login-submit"
-              onClick={() => navigate("/login")}
-            >
-              Back to Sign In
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
+  return <AuthShell>
+    <header className="auth-header"><h1>{state === "ready" ? "Set a new password." : state === "done" ? "Password updated." : state === "error" ? "Link expired." : "Checking your link."}</h1>
+      <p>{state === "ready" ? "Choose a password for your F-Dash account." : state === "done" ? "You can now sign in with your new password." : state === "error" ? "Request a new link to continue." : "This will only take a moment."}</p></header>
+    {error && <p className="auth-alert" role="alert">{error}</p>}
+    {state === "checking" && <div className="auth-message" role="status"><span className="auth-spinner auth-spinner--dark" />Verifying your secure link…</div>}
+    {state === "ready" && <form className="auth-form" onSubmit={submit}>
+      <PasswordField id="auth-new-password" label="New password" value={password} onChange={setPassword} autoComplete="new-password" />
+      <PasswordStrength password={password} className="auth-strength" />
+      <PasswordField id="auth-confirm-password" label="Confirm new password" value={confirm} onChange={setConfirm} autoComplete="new-password" />
+      <button className="auth-primary" type="submit" disabled={busy}>{busy ? "Updating…" : "Update password"}</button>
+    </form>}
+    {(state === "done" || state === "error") && <div className="auth-message">
+      <div className="auth-message-icon">{state === "done" ? <Check size={25} /> : <LockKeyhole size={25} />}</div>
+      <button type="button" className="auth-primary" onClick={() => { sessionStorage.setItem("fd-auth-internal", "1"); navigate(state === "done" ? "/login" : "/login?mode=forgot"); }}>{state === "done" ? "Back to sign in" : "Request a new link"}</button>
+    </div>}
+  </AuthShell>;
 }

@@ -1,8 +1,11 @@
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from './AuthProvider';
+import { DashboardRouteSkeleton } from '../layout/DashboardSkeleton';
+import ClientsWorkspaceSkeleton from '../../pages/ClientsWorkspaceSkeleton';
 
 export default function AuthGuard() {
   const { session, loading } = useAuth();
+  const location = useLocation();
 
   if (typeof window !== 'undefined') {
     const hash = window.location.hash;
@@ -12,15 +15,10 @@ export default function AuthGuard() {
   }
 
   if (loading) {
-    return (
-      <div className="auth-loading">
-        <div className="auth-loading__spinner" />
-        <span className="auth-loading__text">Loading dashboard...</span>
-      </div>
-    );
+    return location.pathname === '/clients' ? <ClientsWorkspaceSkeleton /> : <DashboardRouteSkeleton />;
   }
 
-  if (!session) {
+  if (!session || !session.user.email_confirmed_at) {
     return <Navigate to="/login" replace />;
   }
 

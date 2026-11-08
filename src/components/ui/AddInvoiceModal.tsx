@@ -4,12 +4,15 @@ import ConfirmModal from "./ConfirmModal";
 import ClientSelect from "./ClientSelect";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../auth/AuthProvider";
+import { useCurrency } from "../../hooks/useCurrency";
+import type { Currency } from "../../lib/finance";
+import type { ClientPayment } from "../tables/ClientPaymentsTable";
 
 interface AddInvoiceModalProps {
   isOpen: boolean;
   onClose: () => void;
   onInvoiceAdded: () => void;
-  invoiceToEdit?: any | null;
+  invoiceToEdit?: ClientPayment | null;
 }
 
 export default function AddInvoiceModal({
@@ -19,12 +22,14 @@ export default function AddInvoiceModal({
   invoiceToEdit,
 }: AddInvoiceModalProps) {
   const { user } = useAuth();
+  const { currency: displayCurrency } = useCurrency();
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
   const [clientId, setClientId] = useState("");
   const [clientName, setClientName] = useState("");
   const [amount, setAmount] = useState("");
+  const [currency, setCurrency] = useState<Currency | "">("");
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [status, setStatus] = useState<"Paid" | "Pending" | "Overdue">("Pending");
@@ -50,6 +55,7 @@ export default function AddInvoiceModal({
       setClientId(invoiceToEdit.client_id || "");
       setClientName(invoiceToEdit.client || "");
       setAmount(invoiceToEdit.amount?.toString() || "");
+      setCurrency(invoiceToEdit.currency || "");
       setInvoiceNumber(invoiceToEdit.invoice || "");
       setDueDate(invoiceToEdit.dueDate || "");
       setStatus(invoiceToEdit.status || "Pending");
@@ -58,6 +64,7 @@ export default function AddInvoiceModal({
       setClientId("");
       setClientName("");
       setAmount("");
+      setCurrency(displayCurrency as Currency);
       setInvoiceNumber("");
       setDueDate("");
       setStatus("Pending");
@@ -65,7 +72,7 @@ export default function AddInvoiceModal({
     }
     setErrorMsg("");
     setShowConfirm(false);
-  }, [isOpen, invoiceToEdit]);
+  }, [isOpen, invoiceToEdit, displayCurrency]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -78,6 +85,7 @@ export default function AddInvoiceModal({
       setErrorMsg("Please select or create a client.");
       return;
     }
+    if (!currency) { setErrorMsg("Choose the original currency of this invoice."); return; }
     if (invoiceToEdit) {
       setShowConfirm(true);
     } else {
@@ -96,6 +104,7 @@ export default function AddInvoiceModal({
         client_name: clientName,
         invoice_number: invoiceNumber,
         amount: Number(amount),
+        currency,
         due_date: dueDate,
         status,
         client_id: clientId || null,
@@ -115,8 +124,8 @@ export default function AddInvoiceModal({
 
       await onInvoiceAdded();
       onClose();
-    } catch (error: any) {
-      setErrorMsg(error.message || "Failed to save invoice.");
+    } catch (error: unknown) {
+      setErrorMsg(error instanceof Error ? error.message : "Failed to save invoice.");
     } finally {
       setLoading(false);
     }
@@ -178,11 +187,21 @@ export default function AddInvoiceModal({
           </div>
 
           <div className="form-group">
+            <label htmlFor="invoice-currency">Original currency</label>
+            <select id="invoice-currency" required value={currency} onChange={(e) => setCurrency(e.target.value as Currency | "")}>
+              {!currency && <option value="">Select currency</option>}
+              <option value="USD">USD</option><option value="EUR">EUR</option><option value="GEL">GEL</option>
+            </select>
+          </div>
+        </div>
+        {invoiceToEdit && !invoiceToEdit.currency && <p>This older invoice has no saved currency. Choose its original currency before saving.</p>}
+        <div className="form-row">
+          <div className="form-group">
             <label htmlFor="invoice-status">Status</label>
             <select
               id="invoice-status"
               value={status}
-              onChange={(e) => setStatus(e.target.value as any)}
+              onChange={(e) => setStatus(e.target.value as "Paid" | "Pending" | "Overdue")}
             >
               <option value="Pending">Pending</option>
               <option value="Paid">Paid</option>

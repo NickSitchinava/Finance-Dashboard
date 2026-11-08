@@ -274,107 +274,6 @@
   color: #e05252;
 }
 
-/* Mobile dropdown menu */
-.topbar__mobile-menu {
-  display: none;
-  position: sticky;
-  top: var(--topbar-height);
-  z-index: 300;
-  max-height: 0;
-  overflow: hidden;
-  transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.topbar__mobile-menu--open {
-  max-height: 600px;
-}
-
-.topbar__mobile-menu-inner {
-  background: var(--bg-surface);
-  border-bottom: 1px solid var(--border);
-  padding: 8px 0 12px;
-  z-index: 300;
-}
-
-.topbar__mobile-link {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 13px 20px;
-  font-size: 0.9375rem;
-  font-weight: 500;
-  color: var(--text-secondary);
-  text-decoration: none;
-  border-left: 3px solid transparent;
-  transition: color 0.15s, background 0.15s, border-color 0.15s;
-  opacity: 0;
-  animation: slideInLink 0.25s ease forwards;
-}
-
-@keyframes slideInLink {
-  from { opacity: 0; transform: translateX(-8px); }
-  to   { opacity: 1; transform: translateX(0); }
-}
-
-.topbar__mobile-link:hover {
-  color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.topbar__mobile-link--active {
-  color: var(--text-primary);
-  background: rgba(232, 123, 58, 0.08);
-  border-left-color: var(--accent);
-}
-
-.topbar__mobile-link--active .topbar__mobile-link-icon {
-  color: var(--accent);
-}
-
-.topbar__mobile-link-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  flex-shrink: 0;
-  color: inherit;
-  transition: color 0.15s;
-}
-
-.topbar__mobile-link-label {
-  flex: 1;
-}
-
-.topbar__mobile-link-arrow {
-  color: var(--border);
-  display: flex;
-  align-items: center;
-  transition: color 0.15s, transform 0.15s;
-}
-
-.topbar__mobile-link:hover .topbar__mobile-link-arrow {
-  color: var(--text-secondary);
-  transform: translateX(2px);
-}
-
-.topbar__mobile-link--active .topbar__mobile-link-arrow {
-  color: var(--accent);
-}
-
-/* Backdrop */
-.topbar__backdrop {
-   position: fixed;
-  top: var(--topbar-height); 
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: 250;
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
-}
-
 @media (max-width: 768px) {
   .topbar {
     padding: 0 16px;
@@ -388,17 +287,75 @@
     display: none;
   }
 
-  .topbar__mobile-menu {
-    display: block;
-    z-index: 300;
-  }
-
-  .topbar__backdrop {
-    display: block;
-  }
-
   .notif-dropdown {
     width: calc(100vw - 32px);
     right: -8px;
   }
 }
+
+/* Overview, Finances, and Projects share the light dashboard header. */
+.topbar--overview {
+  background: #f7f7ff;
+  border-bottom-color: #ded9ee;
+  box-shadow: 0 2px 10px rgba(39, 24, 126, .045);
+}
+.topbar--overview .topbar__title { color: #241b4b; font-weight: 750; letter-spacing: -.025em; }
+.topbar--overview .topbar__date { color: #7a7590; }
+.topbar--overview .topbar__icon-btn { color: #514681; }
+.topbar--overview .topbar__icon-btn:hover { color: #27187e; background: #eae5fb; }
+.topbar--overview .topbar__icon-btn:focus-visible,
+.topbar--overview .topbar__overview-actions button:focus-visible {
+  outline: 3px solid #7664cc;
+  outline-offset: 2px;
+}
+.topbar--overview .topbar__burger-bar { background: #514681; }
+.topbar--overview .topbar__burger:hover .topbar__burger-bar { background: #27187e; }
+.topbar--overview .topbar__notif-badge { background: #27187e; }
+.topbar__overview-actions { display: flex; align-items: center; gap: 7px; margin-right: 3px; }
+.topbar__goals-actions { display: flex; align-items: center; margin-right: 3px; }
+.topbar__goals-actions button:focus-visible { outline: 3px solid #7664cc; outline-offset: 2px; }
+.topbar__finance-actions { display: flex; align-items: center; gap: 7px; margin-right: 3px; }
+.topbar__finance-actions button:focus-visible { outline: 3px solid #7664cc; outline-offset: 2px; }
+.topbar__projects-actions { display: flex; align-items: center; gap: 7px; margin-right: 3px; }
+.topbar__projects-actions button:focus-visible { outline: 3px solid #7664cc; outline-offset: 2px; }
+.topbar__invoice-actions { display: flex; align-items: center; margin-right: 3px; }
+.topbar--overview .notif-dropdown { background: #fff; border-color: #ded9ee; box-shadow: 0 14px 34px rgba(39, 24, 126, .12); }
+.topbar--overview .notif-dropdown__header,
+.topbar--overview .notif-item { border-color: #eeeaf7; }
+.topbar--overview .notif-dropdown__title,
+.topbar--overview .notif-item__title { color: #241b4b; }
+.topbar--overview .notif-item__desc,
+.topbar--overview .notif-item__time,
+.topbar--overview .notif-empty { color: #756e88; }
+.topbar--overview .notif-item:hover { background: #f7f7ff; }
+.topbar--overview .notif-dropdown__clear { color: #4935a5; }
+.topbar--overview .notif-item__dismiss { color: #756e88; opacity: 1; }
+.notif-item__goal-actions { display: flex; gap: 7px; margin-top: 8px; }
+.notif-item__goal-actions button { border: 1px solid #7664cc; border-radius: 6px; background: #27187e; color: #fff; min-width: 42px; min-height: 28px; font-size: 11px; font-weight: 700; cursor: pointer; }
+.notif-item__goal-actions button + button { background: #fff; color: #4935a5; }
+@media (max-width: 768px) {
+  .topbar--overview { padding: 0 14px; }
+  .topbar--overview .topbar__left { gap: 9px; }
+  .topbar--overview .topbar__right { gap: 3px; }
+  .topbar--overview .topbar__icon-btn { width: 34px; height: 36px; }
+}
+
+@media (max-width: 700px) {
+  .topbar--finances, .topbar--projects, .topbar--goals {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: var(--topbar-height) auto;
+    column-gap: 3px;
+    height: auto;
+    padding-bottom: 8px;
+  }
+  .topbar--finances .topbar__left, .topbar--projects .topbar__left, .topbar--goals .topbar__left { grid-column: 1; grid-row: 1; }
+  .topbar--finances .topbar__right, .topbar--projects .topbar__right, .topbar--goals .topbar__right { display: contents; }
+  .topbar--finances .notif-wrapper, .topbar--projects .notif-wrapper, .topbar--goals .notif-wrapper { grid-column: 2; grid-row: 1; }
+  .topbar--goals .topbar__goals-actions { grid-column: 1 / -1; grid-row: 2; justify-self: end; margin-right: 0; }
+  .topbar--finances .topbar__finance-actions { grid-column: 1 / -1; grid-row: 2; justify-self: end; margin-right: 0; }
+  .topbar--projects .topbar__projects-actions { grid-column: 1 / -1; grid-row: 2; justify-self: end; justify-content: flex-end; flex-wrap: wrap; margin-right: 0; }
+}
+
+.topbar__burger:focus-visible { outline: 2px solid #7664cc; outline-offset: 3px; }
+@media (max-width: 768px) { .topbar__burger { width: 44px; height: 44px; } }

@@ -1,207 +1,83 @@
-import { useState, useEffect } from "react";
-import MilestoneTimeline from "../components/ui/MilestoneTimeline";
-import GoalCard from "../components/ui/GoalCard";
-import AddGoalModal from "../components/ui/AddGoalModal";
-import AddMilestoneModal from "../components/ui/AddMilestoneModal";
-import ConfirmModal from "../components/ui/ConfirmModal";
-import { supabase } from "../lib/supabase";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { AnimatePresence } from "motion/react";
+import SwipeToast from "../components/ui/SwipeToast";
+import RubberSegment from "../components/ui/RubberSegment";
+import DashboardContentTransition from "../components/ui/DashboardContentTransition";
+import AnimatedMetricValue from "../components/ui/AnimatedMetricValue";
+import { AreaChart, Area, CartesianGrid, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
+import { ArrowDown, ArrowUp, CalendarDays, Check, CirclePlus, LayoutGrid, List, MoreHorizontal, SlidersHorizontal, Target, X } from "lucide-react";
+import { Seek } from "../components/ui/Seek";
+import "../components/ui/Seek.css";
 import { useAuth } from "../components/auth/AuthProvider";
+import { supabase } from "../lib/supabase";
+import { dashboardSnapshot, saveDashboardSnapshot } from "../lib/dashboardCache";
+import { currentStreak, goalProgress, isOverdue, loadGoals, recordProgress, todayLocal } from "../lib/goals";
+import { GoalNotesDisplay, GoalNotesEditor } from "./GoalNotes";
+import GoalsBoard from "./GoalsBoard";
+import type { Goal, GoalOccurrence, GoalStatus, GoalStep, ProgressEvent } from "../lib/goals";
 import "./GoalsPage.css";
 
-export default function GoalsPage() {
-  const { user } = useAuth();
-  const [goals, setGoals] = useState<any[]>([]);
-  const [milestones, setMilestones] = useState<any[]>([]);
-  const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
-  const [isMilestoneModalOpen, setIsMilestoneModalOpen] = useState(false);
+type View = "grid" | "list" | "board";
+type Form = Pick<Goal,"title"|"description"|"notes"|"priority"|"horizon"|"start_date"|"target_date"|"status"|"progress_method"|"percent_complete"|"reference_links"|"recurrence"|"recurrence_weekdays"|"reminder_time"|"time_zone">;
+const emptyForm = ():Form => ({title:"",description:"",notes:"",priority:"medium",horizon:"short",start_date:null,target_date:null,status:"not_started",progress_method:"manual",percent_complete:0,reference_links:[],recurrence:null,recurrence_weekdays:[1,2,3,4,5],reminder_time:"09:00",time_zone:Intl.DateTimeFormat().resolvedOptions().timeZone||"UTC"});
+const labels:Record<GoalStatus,string>={not_started:"Not started",in_progress:"In progress",completed:"Completed"};
+const dateText=(date:string|null)=>date?new Date(date+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}):"No deadline";
+const monthKey=(timestamp:string)=>{const date=new Date(timestamp);return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}`};
+const message=(error:unknown)=>error instanceof Error?error.message:"Please try again.";
 
-  const [goalToEdit, setGoalToEdit] = useState<any>(null);
-  const [milestoneToEdit, setMilestoneToEdit] = useState<any>(null);
-  const [itemToDelete, setItemToDelete] = useState<{
-    id: string;
-    type: "goal" | "milestone";
-  } | null>(null);
+function GoalEditor({goal,onClose,onSaved,onDelete,onStatus,onStep,onOccurrence,occurrence}:{goal:Goal|"new";onClose:()=>void;onSaved:()=>void;onDelete:(goal:Goal)=>void;onStatus:(goal:Goal,status:GoalStatus)=>void;onStep:(step:GoalStep,done:boolean)=>void;onOccurrence:(occ:GoalOccurrence,status:"completed"|"missed")=>void;occurrence?:GoalOccurrence}){
+ const isNew=goal==="new";const [editing,setEditing]=useState(isNew);
+ const [form,setForm]=useState<Form>(isNew?emptyForm():{title:goal.title,description:goal.description,notes:goal.notes,priority:goal.priority,horizon:goal.horizon,start_date:goal.start_date,target_date:goal.target_date,status:goal.status,progress_method:goal.progress_method,percent_complete:goal.percent_complete,reference_links:goal.reference_links||[],recurrence:goal.recurrence,recurrence_weekdays:goal.recurrence_weekdays||[1,2,3,4,5],reminder_time:goal.reminder_time||"09:00",time_zone:goal.time_zone||Intl.DateTimeFormat().resolvedOptions().timeZone||"UTC"});
+ const [steps,setSteps]=useState<GoalStep[]>(isNew?[]:goal.goal_steps||[]);
+ const [draft,setDraft]=useState("");const [link,setLink]=useState("");const [error,setError]=useState("");const [saving,setSaving]=useState(false);
+ const [past,setPast]=useState<{form:Form;steps:GoalStep[]}[]>([]),[future,setFuture]=useState<{form:Form;steps:GoalStep[]}[]>([]);
+ const closeButton=useRef<HTMLButtonElement>(null);
+ const update=(part:Partial<Form>)=>{setPast(items=>[...items.slice(-29),{form,steps}]);setFuture([]);setForm({...form,...part})};
+ const changeSteps=(next:(items:GoalStep[])=>GoalStep[])=>{setPast(items=>[...items.slice(-29),{form,steps}]);setFuture([]);setSteps(next)};
+ const undo=()=>{if(!past.length)return;setFuture(items=>[{form,steps},...items]);setForm(past[past.length-1].form);setSteps(past[past.length-1].steps);setPast(items=>items.slice(0,-1))};
+ const redo=()=>{if(!future.length)return;setPast(items=>[...items,{form,steps}]);setForm(future[0].form);setSteps(future[0].steps);setFuture(items=>items.slice(1))};
+ useEffect(()=>{const previous=document.activeElement as HTMLElement|null,overflow=document.body.style.overflow;document.body.style.overflow="hidden";closeButton.current?.focus();return()=>{document.body.style.overflow=overflow;previous?.focus()}},[]);
+ useEffect(()=>{const key=(e:KeyboardEvent)=>{if(e.key==="Escape")onClose();if(editing&&(e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"){e.preventDefault();if(e.shiftKey)redo();else undo()}if(e.key==="Tab"){const nodes=[...document.querySelectorAll<HTMLElement>(".goals-dialog button:not(:disabled),.goals-dialog input:not(:disabled),.goals-dialog textarea:not(:disabled),.goals-dialog select:not(:disabled)")];if(e.shiftKey&&document.activeElement===nodes[0]){e.preventDefault();nodes.at(-1)?.focus()}else if(!e.shiftKey&&document.activeElement===nodes.at(-1)){e.preventDefault();nodes[0]?.focus()}}};document.addEventListener("keydown",key);return()=>document.removeEventListener("keydown",key)});
+ const stepKind=form.progress_method==="subgoals"?"subgoal":"checklist";
+ const save=async(e:React.FormEvent)=>{e.preventDefault();setError("");if(!form.title.trim()){setError("Add a goal title.");return}if(form.start_date&&form.target_date&&form.start_date>form.target_date){setError("Target date must follow start date.");return}setSaving(true);try{const userId=isNew?(await supabase.auth.getUser()).data.user?.id:goal.user_id;if(!userId)throw Error("Sign in again.");const payload={...form,title:form.title.trim(),description:form.description.trim(),start_date:form.recurrence?(form.start_date||todayLocal()):form.start_date,recurrence_weekdays:form.recurrence==="weekdays"?form.recurrence_weekdays:null,reminder_time:form.recurrence?form.reminder_time:null,time_zone:form.recurrence?form.time_zone:null};const result=isNew?await supabase.from("goals").insert({...payload,user_id:userId}).select().single():await supabase.from("goals").update({...payload,updated_at:new Date().toISOString()}).eq("id",goal.id).eq("user_id",userId).select().single();if(result.error)throw result.error;const saved=result.data as Goal;if(!isNew){const removed=(goal.goal_steps||[]).filter(s=>!steps.some(x=>x.id===s.id)).map(s=>s.id);if(removed.length){const r=await supabase.from("goal_steps").delete().in("id",removed).eq("user_id",userId);if(r.error)throw r.error}}if(steps.length){const r=await supabase.from("goal_steps").upsert(steps.map((s,i)=>({id:s.id,goal_id:saved.id,user_id:userId,kind:s.kind,title:s.title,description:s.description,target_date:s.target_date,completed:s.completed,sort_order:i})),{onConflict:"id"});if(r.error)throw r.error}const relevant=steps.filter(s=>s.kind===stepKind);const progress=form.progress_method==="manual"?Number(form.percent_complete):relevant.length?Math.round(100*relevant.filter(s=>s.completed).length/relevant.length):0;if(progress!==saved.percent_complete){const r=await supabase.from("goals").update({percent_complete:progress}).eq("id",saved.id).eq("user_id",userId);if(r.error)throw r.error}if(isNew||progress!==(isNew?0:goalProgress(goal)))await recordProgress(saved,progress);onSaved();onClose()}catch(err){setError("Goal could not be saved. "+message(err))}finally{setSaving(false)}};
+ return createPortal(<div className="goals-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)onClose()}}><section className="goals-dialog" role="dialog" aria-modal="true" aria-labelledby="goals-dialog-title"><header className="goals-dialog__header"><div><h2 id="goals-dialog-title">{isNew?"Create a goal":editing?"Edit goal":goal.title}</h2><p>{editing?"A little direction makes progress easier.":"Your goal, at a glance."}</p></div><button ref={closeButton} className="goals-icon" onClick={onClose} aria-label="Close"><X size={18}/></button></header>
+ {editing?<form className="goals-dialog__body" onSubmit={save}><section><h3>Basics</h3><label>Goal title<input value={form.title} onChange={e=>update({title:e.target.value})} maxLength={160} placeholder="What would you like to work toward?"/></label><label>Description<textarea value={form.description} onChange={e=>update({description:e.target.value})} rows={2}/></label><div className="goals-form-pair"><label>Priority<select value={form.priority} onChange={e=>update({priority:e.target.value as Form["priority"]})}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label><label>Time horizon<select value={form.horizon} onChange={e=>update({horizon:e.target.value as Form["horizon"]})}><option value="short">Short term</option><option value="long">Long term</option></select></label></div></section>
+ <section><h3>Schedule</h3><div className="goals-form-pair"><label>Start date<input type="date" value={form.start_date||""} onChange={e=>update({start_date:e.target.value||null})}/></label><label>Target date<input type="date" value={form.target_date||""} onChange={e=>update({target_date:e.target.value||null})}/></label></div><label className="goals-check"><input type="checkbox" checked={!!form.recurrence} onChange={e=>update({recurrence:e.target.checked?"daily":null})}/> Make this recurring</label>{form.recurrence&&<><div className="goals-form-pair"><label>Repeat<select value={form.recurrence} onChange={e=>update({recurrence:e.target.value as Form["recurrence"]})}><option value="daily">Daily</option><option value="weekdays">Selected weekdays</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></label><label>Reminder time<input type="time" value={form.reminder_time||""} onChange={e=>update({reminder_time:e.target.value})}/></label></div>{form.recurrence==="weekdays"&&<div className="goals-weekdays">{["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map((d,i)=><label key={d}><input type="checkbox" checked={form.recurrence_weekdays?.includes(i+1)||false} onChange={e=>update({recurrence_weekdays:e.target.checked?[...(form.recurrence_weekdays||[]),i+1]:(form.recurrence_weekdays||[]).filter(x=>x!==i+1)})}/>{d}</label>)}</div>}<label>Time zone<input value={form.time_zone||""} onChange={e=>update({time_zone:e.target.value})}/></label></>}</section>
+ <section><h3>Progress</h3><label>Method<select value={form.progress_method} onChange={e=>update({progress_method:e.target.value as Form["progress_method"]})}><option value="manual">Manual percentage</option><option value="checklist">Checklist</option><option value="subgoals">Subgoals</option></select></label>{form.progress_method==="manual"?<label>Current progress · {form.percent_complete}%<input type="range" min="0" max="100" value={form.percent_complete} onChange={e=>update({percent_complete:Number(e.target.value)})}/></label>:<><p className="goals-hint">Progress is calculated from completed {form.progress_method}.</p>{steps.filter(s=>s.kind===stepKind).map((s,i)=><div className="goals-step-edit" key={s.id}><input type="checkbox" checked={s.completed} onChange={e=>changeSteps(items=>items.map(x=>x.id===s.id?{...x,completed:e.target.checked}:x))}/><input aria-label="Step title" value={s.title} onChange={e=>changeSteps(items=>items.map(x=>x.id===s.id?{...x,title:e.target.value}:x))}/>{stepKind==="subgoal"&&<><input aria-label="Subgoal description" value={s.description} onChange={e=>changeSteps(items=>items.map(x=>x.id===s.id?{...x,description:e.target.value}:x))} placeholder="Description"/><input type="date" aria-label="Subgoal deadline" value={s.target_date||""} onChange={e=>changeSteps(items=>items.map(x=>x.id===s.id?{...x,target_date:e.target.value||null}:x))}/></>}<button type="button" aria-label="Move step up" disabled={i===0} onClick={()=>changeSteps(items=>{const a=[...items],at=a.findIndex(x=>x.id===s.id);[a[at-1],a[at]]=[a[at],a[at-1]];return a})}><ArrowUp size={14}/></button><button type="button" className="goals-delete-step" aria-label="Delete step" onClick={()=>changeSteps(items=>items.filter(x=>x.id!==s.id))}><X size={14}/></button></div>)}<div className="goals-inline-add"><input value={draft} onChange={e=>setDraft(e.target.value)} placeholder="Add a step" aria-label="New step"/><button type="button" onClick={()=>{if(!draft.trim())return;changeSteps(items=>[...items,{id:crypto.randomUUID(),goal_id:isNew?"":goal.id,user_id:isNew?"":goal.user_id,kind:stepKind,title:draft.trim(),description:"",target_date:null,completed:false,sort_order:items.length}]);setDraft("")}}>Add</button></div></>}</section>
+ <details><summary>Notes and links</summary><label>Notes<GoalNotesEditor value={form.notes||""} onChange={value=>update({notes:value})}/></label><div className="goals-inline-add"><input type="url" value={link} onChange={e=>setLink(e.target.value)} placeholder="https://" aria-label="Reference link"/><button type="button" onClick={()=>{if(link.startsWith("https://")){update({reference_links:[...form.reference_links,link]});setLink("")}}}>Add</button></div>{form.reference_links.map((url,i)=><div key={i} className="goals-link">{url}<button type="button" aria-label="Remove link" onClick={()=>update({reference_links:form.reference_links.filter((_,j)=>j!==i)})}><X size={14}/></button></div>)}</details>{error&&<p className="goals-error" role="alert">{error}</p>}<footer className="goals-dialog__footer"><div><button type="button" onClick={undo} disabled={!past.length}>Undo</button><button type="button" onClick={redo} disabled={!future.length}>Redo</button></div><div><button type="button" onClick={onClose}>Cancel</button><button className="goals-primary" type="submit" disabled={saving}>{saving?"Saving…":isNew?"Create goal":"Save changes"}</button></div></footer></form>:goal!=="new"&&<div className="goals-dialog__body"><div className="goals-detail-tags"><span>{labels[goal.status]}</span><span>{goal.priority} priority</span><span>{goal.horizon==="short"?"Short term":"Long term"}</span>{goal.recurrence&&<span>{goal.recurrence}</span>}</div>{goal.description&&<p>{goal.description}</p>}<div className="goals-detail-progress"><strong>{goalProgress(goal)}% progress</strong><div className="goals-track"><i style={{width:goalProgress(goal)+"%"}}/></div></div><div className="goals-detail-facts"><span>Target date <strong>{dateText(goal.target_date)}</strong></span><span>Start date <strong>{dateText(goal.start_date)}</strong></span>{goal.completed_at&&<span>Completed <strong>{new Date(goal.completed_at).toLocaleDateString()}</strong></span>}</div>{!!goal.goal_steps?.length&&<section><h3>Steps</h3>{[...goal.goal_steps].sort((a,b)=>a.sort_order-b.sort_order).map(s=><label className="goals-check" key={s.id}><input type="checkbox" checked={s.completed} onChange={e=>onStep(s,e.target.checked)}/><span>{s.title}{s.description&&<small>{s.description}</small>}{s.target_date&&<small>Due {dateText(s.target_date)}</small>}</span></label>)}</section>}{goal.notes&&<section><h3>Notes</h3><GoalNotesDisplay value={goal.notes}/></section>}{!!goal.reference_links?.length&&<section><h3>Links</h3>{goal.reference_links.map((url,i)=><a key={i} href={url} target="_blank" rel="noopener noreferrer">{url}</a>)}</section>}{goal.recurrence&&<section><h3>Recurring</h3><p>{goal.recurrence} at {goal.reminder_time?.slice(0,5)} · {goal.time_zone}</p>{occurrence&&<div className="goals-dialog__footer"><button onClick={()=>onOccurrence(occurrence,"missed")}>Not today</button><button className="goals-primary" onClick={()=>onOccurrence(occurrence,"completed")}>Complete occurrence</button></div>}</section>}<footer className="goals-dialog__footer"><button className="goals-danger" onClick={()=>onDelete(goal)}>Delete</button><div><button onClick={()=>setEditing(true)}>Edit</button>{!goal.recurrence&&<button className="goals-primary" onClick={()=>onStatus(goal,goal.status==="completed"?"in_progress":"completed")}>{goal.status==="completed"?"Reopen goal":"Mark complete"}</button>}</div></footer></div>}</section></div>,document.body)
+}
 
-  const [loading, setLoading] = useState(true);
-  const [isDeleting, setIsDeleting] = useState(false);
-
-  async function fetchGoalsAndMilestones() {
-    if (!user) return;
-    setLoading(true);
-    const [{ data: goalsData }, { data: milestonesData }] = await Promise.all([
-      supabase.from("goals").select("*").order("target_date", { ascending: true }),
-      supabase.from("milestones").select("*").order("target_date", { ascending: true }),
-    ]);
-    if (goalsData) {
-      setGoals(goalsData.map((d) => ({
-        ...d,
-        targetDate: d.target_date,
-        percentComplete: d.percent_complete,
-      })));
-    }
-    if (milestonesData) setMilestones(milestonesData);
-    setLoading(false);
-  }
-
-  async function handleDeleteConfirm() {
-    if (!itemToDelete) return;
-    setIsDeleting(true);
-    const table = itemToDelete.type === "goal" ? "goals" : "milestones";
-    await supabase.from(table).delete().eq("id", itemToDelete.id);
-    setIsDeleting(false);
-    setItemToDelete(null);
-    fetchGoalsAndMilestones();
-  }
-
-  function openEditGoal(g: any) { setGoalToEdit(g); setIsGoalModalOpen(true); }
-  function openAddGoal() { setGoalToEdit(null); setIsGoalModalOpen(true); }
-  function openEditMilestone(m: any) { setMilestoneToEdit(m); setIsMilestoneModalOpen(true); }
-  function openAddMilestone() { setMilestoneToEdit(null); setIsMilestoneModalOpen(true); }
-
-  useEffect(() => { fetchGoalsAndMilestones(); }, [user]);
-
-  const activeGoals = goals.filter((g) => g.percentComplete < 100);
-  const completedGoals = goals.filter((g) => g.percentComplete === 100);
-  const completedMilestones = milestones.filter((m) => m.completed);
-  const activeMilestones = milestones.filter((m) => !m.completed);
-
-  const goalCardProps = (goal: any) => ({
-    key: goal.id,
-    goal,
-    onEdit: openEditGoal,
-    onDelete: (g: any) => g.id && setItemToDelete({ id: g.id, type: "goal" as const }),
-    onRefresh: fetchGoalsAndMilestones,
-  });
-
-  return (
-    <div className="page">
-      <div className="page__toolbar">
-        <button className="btn btn--outline" onClick={openAddMilestone}>
-          + New Milestone
-        </button>
-        <button className="btn btn--primary" onClick={openAddGoal}>
-          + New Goal
-        </button>
-      </div>
-
-      {/* Stats row */}
-      <div className="goals-stats-row">
-        <div className="goals-stats-group">
-          <div className="goals-stats-group__label">Goals</div>
-          <div className="goals-stats-group__cards">
-            <div className="goals-stat-card">
-              <span className="goals-stat-card__value">{goals.length}</span>
-              <span className="goals-stat-card__label">Total</span>
-            </div>
-            <div className="goals-stat-card goals-stat-card--accent">
-              <span className="goals-stat-card__value">{activeGoals.length}</span>
-              <span className="goals-stat-card__label">In Progress</span>
-            </div>
-            <div className="goals-stat-card goals-stat-card--success">
-              <span className="goals-stat-card__value">{completedGoals.length}</span>
-              <span className="goals-stat-card__label">Completed</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="goals-stats-divider" />
-
-        <div className="goals-stats-group">
-          <div className="goals-stats-group__label">Milestones</div>
-          <div className="goals-stats-group__cards">
-            <div className="goals-stat-card">
-              <span className="goals-stat-card__value">{milestones.length}</span>
-              <span className="goals-stat-card__label">Total</span>
-            </div>
-            <div className="goals-stat-card goals-stat-card--accent">
-              <span className="goals-stat-card__value">{activeMilestones.length}</span>
-              <span className="goals-stat-card__label">In Progress</span>
-            </div>
-            <div className="goals-stat-card goals-stat-card--success">
-              <span className="goals-stat-card__value">{completedMilestones.length}</span>
-              <span className="goals-stat-card__label">Completed</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Timeline */}
-      <div className="page__row page__row--full">
-        <MilestoneTimeline
-          milestones={milestones.map((m) => ({
-            ...m,
-            date: m.target_date
-              ? new Date(m.target_date).toLocaleDateString([], { month: "short", year: "numeric" })
-              : "No date",
-          }))}
-          onEdit={openEditMilestone}
-          onDelete={(m) => setItemToDelete({ id: m.id, type: "milestone" })}
-          onRefresh={fetchGoalsAndMilestones}
-        />
-      </div>
-
-      {/* Active Goals */}
-      {!loading && activeGoals.length > 0 && (
-        <>
-          <div className="goals-section-header">
-            <span className="goals-section-header__title">In Progress</span>
-            <span className="goals-section-header__count">{activeGoals.length}</span>
-          </div>
-          <div className="page__row page__row--3">
-            {activeGoals.map((goal) => (
-              <GoalCard {...goalCardProps(goal)} />
-            ))}
-          </div>
-        </>
-      )}
-
-      {loading && <div className="page-loading">Loading goals...</div>}
-
-      {!loading && goals.length === 0 && (
-        <div className="page-loading">No goals yet. Add one above!</div>
-      )}
-
-      {/* Completed Goals */}
-      {!loading && completedGoals.length > 0 && (
-        <>
-          <div className="goals-section-divider" />
-          <div className="goals-section-header goals-section-header--completed">
-            <span className="goals-section-header__title">Completed</span>
-            <span className="goals-section-header__count goals-section-header__count--completed">
-              {completedGoals.length}
-            </span>
-          </div>
-          <div className="page__row page__row--3">
-            {completedGoals.map((goal) => (
-              <GoalCard {...goalCardProps(goal)} />
-            ))}
-          </div>
-        </>
-      )}
-
-      <AddGoalModal
-        isOpen={isGoalModalOpen}
-        onClose={() => setIsGoalModalOpen(false)}
-        onGoalAdded={fetchGoalsAndMilestones}
-        goalToEdit={goalToEdit}
-      />
-      <AddMilestoneModal
-        isOpen={isMilestoneModalOpen}
-        onClose={() => setIsMilestoneModalOpen(false)}
-        onMilestoneAdded={fetchGoalsAndMilestones}
-        milestoneToEdit={milestoneToEdit}
-      />
-      <ConfirmModal
-        isOpen={!!itemToDelete}
-        onClose={() => setItemToDelete(null)}
-        title={itemToDelete?.type === "goal" ? "Delete Goal" : "Delete Milestone"}
-        message="Are you sure you want to delete this? This action cannot be undone."
-        confirmText="Delete"
-        cancelText="Cancel"
-        onConfirm={handleDeleteConfirm}
-        confirmVariant="danger"
-        loading={isDeleting}
-      />
-    </div>
-  );
+export default function GoalsPage(){
+ const {user}=useAuth();const cached=dashboardSnapshot<{goals:Goal[];occurrences:GoalOccurrence[];events:ProgressEvent[]}>(`${user?.id}|goals`);const [goals,setGoals]=useState<Goal[]>(()=>cached?.goals??[]),[occurrences,setOccurrences]=useState<GoalOccurrence[]>(()=>cached?.occurrences??[]),[events,setEvents]=useState<ProgressEvent[]>(()=>cached?.events??[]);const [loading,setLoading]=useState(()=>!cached),[error,setError]=useState(""),[notice,setNoticeState]=useState(""),[noticeSequence,setNoticeSequence]=useState(0);
+ const setNotice=(value:string)=>{setNoticeState(value);if(value)setNoticeSequence(sequence=>sequence+1)};
+ const [dialog,setDialog]=useState<Goal|"new"|null>(null),[toDelete,setToDelete]=useState<Goal|null>(null),[tab,setTab]=useState<"active"|"completed">("active"),[view,setView]=useState<View>(()=>(localStorage.getItem("f-dash-goals-view") as View)||"grid"),[range,setRange]=useState(30),[metric,setMetric]=useState<"completed"|"created"|"occurrences"|"progress">("completed");
+ const [headerActions,setHeaderActions]=useState<HTMLElement|null>(null);useEffect(()=>{setHeaderActions(document.getElementById("goals-header-actions"))},[]);
+ const [search,setSearch]=useState(""),[query,setQuery]=useState(""),[filters,setFilters]=useState(false),[priority,setPriority]=useState("all"),[horizon,setHorizon]=useState("all"),[schedule,setSchedule]=useState("all"),[deadline,setDeadline]=useState("all"),[sort,setSort]=useState("recent");
+ const refresh=useCallback(async()=>{if(!user)return;try{const data=await loadGoals(user.id);saveDashboardSnapshot(`${user.id}|goals`,data);setGoals(data.goals);setOccurrences(data.occurrences);setEvents(data.events);setError("")}catch(e){setError("Goals could not load. "+message(e))}finally{setLoading(false)}},[user]);
+ useEffect(()=>{if(user&&!loading)saveDashboardSnapshot(`${user.id}|goals`,{goals,occurrences,events})},[user,loading,goals,occurrences,events]);
+ useEffect(()=>{void refresh()},[refresh]);useEffect(()=>{const fn=()=>void refresh();window.addEventListener("goal-updated",fn);return()=>window.removeEventListener("goal-updated",fn)},[refresh]);useEffect(()=>{const id=setTimeout(()=>setQuery(search.trim().toLowerCase()),250);return()=>clearTimeout(id)},[search]);
+ const active=goals.filter(g=>g.status!=="completed"),completed=goals.filter(g=>g.status==="completed"&&!g.recurrence),overdue=active.filter(isOverdue),recurring=goals.filter(g=>!!g.recurrence),average=goals.length?Math.round(goals.reduce((n,g)=>n+goalProgress(g),0)/goals.length):0;
+ const shown=useMemo(()=>{const ranks={high:3,medium:2,low:1};return goals.filter(g=>(tab==="active"?(view==="board"||g.status!=="completed"):g.status==="completed"&&!g.recurrence)&&(!query||(g.title+" "+g.description).toLowerCase().includes(query))&&(priority==="all"||g.priority===priority)&&(horizon==="all"||g.horizon===horizon)&&(schedule==="all"||(schedule==="recurring")===!!g.recurrence)&&(deadline==="all"||(deadline==="overdue"?isOverdue(g):deadline==="none"?!g.target_date:!!g.target_date&&g.target_date>=todayLocal()&&g.target_date<=new Date(Date.now()+7*86400000).toISOString().slice(0,10)))).sort((a,b)=>sort==="deadline"?(a.target_date||"9999").localeCompare(b.target_date||"9999"):sort==="priority"?ranks[b.priority]-ranks[a.priority]:sort==="progress"?goalProgress(b)-goalProgress(a):sort==="updated"?b.updated_at.localeCompare(a.updated_at):sort==="custom"?a.sort_order-b.sort_order:b.created_at.localeCompare(a.created_at))},[goals,tab,view,query,priority,horizon,schedule,deadline,sort]);
+ const chart=useMemo(()=>{const dayKey=(date:Date)=>`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`;const map=new Map<string,number>();const d=new Date();d.setHours(0,0,0,0);for(let i=range-1;i>=0;i--){const day=new Date(d);day.setDate(d.getDate()-i);map.set(dayKey(day),0)}const keys=metric==="created"?goals.map(g=>dayKey(new Date(g.created_at))):metric==="completed"?goals.filter(g=>g.completed_at).map(g=>dayKey(new Date(g.completed_at!))):metric==="progress"?events.map(e=>dayKey(new Date(e.recorded_at))):occurrences.filter(o=>o.status==="completed").map(o=>o.scheduled_date);keys.forEach(k=>{if(map.has(k))map.set(k,map.get(k)!+1)});return [...map].map(([date,value])=>({date,value}))},[goals,occurrences,events,metric,range]);
+ const chartTicks=useMemo(()=>chart.filter((point,index)=>index===0||point.date.slice(0,7)!==chart[index-1].date.slice(0,7)).map(point=>point.date),[chart]);
+ const selected=dialog&&dialog!=="new"?goals.find(g=>g.id===dialog.id)||dialog:dialog;
+ async function mutate(goal:Goal,patch:Partial<Goal>,success:string){const old=goals;const updated={...goal,...patch};setGoals(items=>items.map(g=>g.id===goal.id?updated:g));try{const r=await supabase.from("goals").update(patch).eq("id",goal.id).eq("user_id",goal.user_id);if(r.error)throw r.error;if(patch.percent_complete!==undefined)await recordProgress(goal,patch.percent_complete);setNotice(success);window.dispatchEvent(new Event("goal-updated"))}catch(e){setGoals(old);setError("Change was rolled back. "+message(e))}}
+ const status=(goal:Goal,next:GoalStatus)=>{if(goal.recurrence&&next==="completed"){const due=occurrences.find(o=>o.goal_id===goal.id&&o.status==="pending");if(due)void occurrenceChange(due,"completed");else setNotice("No occurrence is due for this recurring goal.");return}void mutate(goal,{status:next,percent_complete:next==="completed"?100:next==="not_started"?0:goal.percent_complete,completed_at:next==="completed"?new Date().toISOString():null,updated_at:new Date().toISOString()},next==="completed"?"Goal completed.":"Goal updated.");setDialog(null)};
+ async function stepChange(step:GoalStep,done:boolean){const old=goals,parent=goals.find(g=>g.id===step.goal_id);if(!parent)return;const revised={...parent,goal_steps:parent.goal_steps?.map(s=>s.id===step.id?{...s,completed:done}:s)};setGoals(items=>items.map(g=>g.id===parent.id?revised:g));try{const r=await supabase.from("goal_steps").update({completed:done}).eq("id",step.id).eq("user_id",step.user_id);if(r.error)throw r.error;const progress=goalProgress(revised);if(progress!==goalProgress(parent)){const u=await supabase.from("goals").update({percent_complete:progress,status:progress>0?"in_progress":"not_started"}).eq("id",parent.id).eq("user_id",parent.user_id);if(u.error)throw u.error;await recordProgress(parent,progress)}setNotice("Step updated.")}catch(e){setGoals(old);setError("Step change was rolled back. "+message(e))}}
+ async function occurrenceChange(o:GoalOccurrence,next:"completed"|"missed"){const old=occurrences;setOccurrences(items=>items.map(x=>x.id===o.id?{...x,status:next}:x));try{const r=await supabase.from("goal_occurrences").update({status:next,resolved_at:new Date().toISOString()}).eq("id",o.id).eq("user_id",o.user_id).eq("status","pending").select("id").maybeSingle();if(r.error)throw r.error;if(!r.data)throw Error("Already answered.");setNotice(next==="completed"?"Occurrence completed.":"Occurrence marked missed.");window.dispatchEvent(new Event("goal-updated"))}catch(e){setOccurrences(old);setError("Response was rolled back. "+message(e))}}
+ async function remove(){if(!toDelete)return;const old=goals,g=toDelete;setGoals(items=>items.filter(x=>x.id!==g.id));setDialog(null);setToDelete(null);const r=await supabase.from("goals").delete().eq("id",g.id).eq("user_id",g.user_id);if(r.error){setGoals(old);setError("Goal was restored. "+r.error.message)}else setNotice("Goal deleted.")}
+ function reorder(g:Goal,delta:number){const items=[...shown],i=items.findIndex(x=>x.id===g.id),j=i+delta;if(j<0||j>=items.length)return;[items[i],items[j]]=[items[j],items[i]];const old=goals,order=new Map(items.map((x,n)=>[x.id,n]));setGoals(all=>all.map(x=>order.has(x.id)?{...x,sort_order:order.get(x.id)!}:x));setSort("custom");void Promise.all(items.map((x,n)=>supabase.from("goals").update({sort_order:n}).eq("id",x.id).eq("user_id",x.user_id))).then(results=>{if(results.some(r=>r.error)){setGoals(old);setError("Order could not be saved.")}})}
+ async function moveBoard(goal:Goal,next:GoalStatus,_index:number,orderedIds:string[]){const old=goals;const order=new Map(orderedIds.map((id,index)=>[id,index]));const changed=goal.status!==next;const progress=next==="completed"?100:next==="not_started"?0:goal.percent_complete;const patch:Partial<Goal>={status:next,percent_complete:progress,completed_at:next==="completed"?new Date().toISOString():null,updated_at:new Date().toISOString()};setSort("custom");setGoals(items=>items.map(item=>item.id===goal.id?{...item,...patch,sort_order:order.get(item.id)??item.sort_order}:order.has(item.id)?{...item,sort_order:order.get(item.id)!}:item));try{const results=await Promise.all(orderedIds.map(id=>supabase.from("goals").update(id===goal.id?{...patch,sort_order:order.get(id)!}:{sort_order:order.get(id)!}).eq("id",id).eq("user_id",goal.user_id)));if(results.some(result=>result.error))throw Error(results.find(result=>result.error)?.error?.message||"Order could not be saved.");if(changed&&progress!==goal.percent_complete)await recordProgress(goal,progress);setNotice(changed?next==="completed"?"Goal completed.":"Goal updated.":"Order updated.");window.dispatchEvent(new Event("goal-updated"))}catch(e){setGoals(old);setError("Move was rolled back. "+message(e))}}
+ const clear=()=>{setSearch("");setPriority("all");setHorizon("all");setSchedule("all");setDeadline("all")};
+ const card=(g:Goal)=><article key={g.id} className={"goals-card"+(isOverdue(g)?" goals-card--overdue":"")}><button className="goals-card__main" onClick={()=>setDialog(g)}><div className="goals-card__tags"><span className={"goals-priority goals-priority--"+g.priority}>{g.priority}</span><span>{g.horizon==="short"?"Short term":"Long term"}</span></div><h4>{g.title}</h4>{g.description&&<p>{g.description}</p>}<div className="goals-card__meta"><CalendarDays size={14}/>{dateText(g.target_date)}{g.recurrence&&<span>· {g.recurrence}</span>}{isOverdue(g)&&<em>Overdue</em>}</div><div className="goals-card__progress"><span>{labels[g.status]}</span><strong><AnimatedMetricValue value={goalProgress(g)}/>%</strong></div><div className="goals-track"><i style={{width:goalProgress(g)+"%"}}/></div></button><footer>{g.recurrence?<span>{currentStreak(g.id,occurrences)} streak</span>:g.status==="completed"?<span>Completed {g.completed_at?new Date(g.completed_at).toLocaleDateString():""}</span>:<button onClick={()=>status(g,"completed")}><Check size={15}/> Mark complete</button>}<button onClick={()=>setDialog(g)} aria-label={"Open "+g.title}><MoreHorizontal size={16}/></button></footer></article>;
+ return <div className="goals-page">{headerActions && createPortal(<button className="goals-primary" onClick={()=>setDialog("new")}><CirclePlus size={16}/> New goal</button>, headerActions)}<div className="goals-page__inner">{error&&<div className="goals-error-banner" role="alert">{error}<button onClick={()=>{setError("");void refresh()}}>Retry</button></div>}
+ {loading?<><div className="goals-metrics goals-skeleton">{[1,2,3,4,5].map(i=><div key={i}/>)}</div><div className="goals-analytics goals-skeleton"><div/><div/></div><div className="goals-workspace goals-workspace--skeleton"><div className="goals-skeleton-line"/><div className="goals-skeleton-line goals-skeleton-line--short"/><div className="goals-skeleton-toolbar"/><div className="goals-grid goals-skeleton">{[1,2,3].map(i=><div key={i}/>)}</div></div></>:<><div className="goals-metrics"><div className="goals-metric goals-metric--featured"><span>Total goals</span><strong><AnimatedMetricValue value={goals.length}/></strong><small>In your workspace</small></div><div className="goals-metric"><span>Active</span><strong><AnimatedMetricValue value={active.length}/></strong><small>Moving forward</small></div><div className="goals-metric"><span>Completed</span><strong><AnimatedMetricValue value={completed.length}/></strong><small>One-time goals</small></div><div className="goals-metric"><span>Overdue</span><strong><AnimatedMetricValue value={overdue.length}/></strong><small>Need attention</small></div><div className="goals-metric goals-metric--tint"><span>Average progress</span><strong><AnimatedMetricValue value={average}/>%</strong><small>{recurring.length?"Best streak · "+Math.max(...recurring.map(g=>currentStreak(g.id,occurrences))):"No recurring streak yet"}</small></div></div>
+ <div className="goals-analytics"><section className="goals-panel"><div className="goals-panel__head"><div><h3>Goal activity</h3><p>Recorded changes over time</p></div><RubberSegment className="goals-rubber-range" trackColor="#efecf9" thumbColor="#fff" textColor="#35265e" activeTextColor="#27187e" aria-label="Goal activity date range" items={["30d","3m","6m","12m"]} value={{30:"30d",90:"3m",180:"6m",365:"12m"}[range]} onChange={value=>setRange(({"30d":30,"3m":90,"6m":180,"12m":365} as Record<string,number>)[value])} size="md" /></div><label className="goals-chart-select">Show <select value={metric} onChange={e=>setMetric(e.target.value as typeof metric)}><option value="completed">Completions</option><option value="created">New goals</option><option value="occurrences">Recurring completions</option><option value="progress">Progress updates</option></select></label>{chart.some(x=>x.value)?<div className="goals-chart" role="img" aria-label={metric+" over "+range+" days"}><ResponsiveContainer width="100%" height="100%"><AreaChart data={chart} margin={{top:8,right:12,left:-18,bottom:0}}><defs><linearGradient id="goals-activity-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#4935a5" stopOpacity={0.24}/><stop offset="100%" stopColor="#4935a5" stopOpacity={0}/></linearGradient></defs><CartesianGrid vertical={false} stroke="#e7e3f0" strokeDasharray="3 5"/><XAxis dataKey="date" ticks={chartTicks} tickFormatter={(value:string)=>new Date(`${value}T12:00:00`).toLocaleDateString(undefined,{month:"short"})} axisLine={false} tickLine={false} interval={0} tick={{fill:"#7e7891",fontSize:11}} dy={8}/><YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{fill:"#7e7891",fontSize:11}} width={34}/><Tooltip labelFormatter={value=>new Date(`${value}T12:00:00`).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"})} formatter={value=>[new Intl.NumberFormat().format(Number(value)),"Activity"]} contentStyle={{border:"1px solid #ded8ee",borderRadius:10,boxShadow:"0 12px 32px #21145218",fontSize:12}}/><Area type="monotone" dataKey="value" stroke="#4935a5" strokeWidth={2.5} fill="url(#goals-activity-fill)" dot={false} activeDot={{r:5,fill:"#4935a5"}} isAnimationActive animationDuration={850} animationEasing="ease-in-out"/></AreaChart></ResponsiveContainer></div>:<div className="goals-chart-empty"><Target size={24}/><strong>No activity in this range</strong><span>New goals and progress changes will appear here.</span></div>}</section><aside className="goals-panel goals-summary"><h3>At a glance</h3><div><span>Short term</span><strong>{goals.filter(g=>g.horizon==="short").length}</strong></div><div><span>Long term</span><strong>{goals.filter(g=>g.horizon==="long").length}</strong></div><div className="goals-summary__bar"><i style={{width:(goals.length?100*goals.filter(g=>g.horizon==="short").length/goals.length:0)+"%"}}/></div><h4>Insights</h4>{completed.filter(g=>g.completed_at&&monthKey(g.completed_at)===todayLocal().slice(0,7)).length>0&&<p>{completed.filter(g=>g.completed_at&&monthKey(g.completed_at)===todayLocal().slice(0,7)).length} completed this month.</p>}{overdue.length>0&&<p>{overdue.length} overdue goal{overdue.length===1?"":"s"} need attention.</p>}{!completed.length&&!overdue.length&&<p>Insights will appear as you update goals.</p>}</aside></div>
+ <section className="goals-workspace"><div className="goals-workspace__head"><div><h3>Goal workspace</h3><div className="goals-tabs" role="tablist"><button role="tab" aria-selected={tab==="active"} className={tab==="active"?"is-active":""} onClick={()=>setTab("active")}>Active <span>{active.length}</span></button><button role="tab" aria-selected={tab==="completed"} className={tab==="completed"?"is-active":""} onClick={()=>setTab("completed")}>Completed <span>{completed.length}</span></button></div></div><RubberSegment className="goals-rubber-views" trackColor="#efecf9" thumbColor="#fff" textColor="#35265e" activeTextColor="#27187e" aria-label="Goal workspace view" items={[{value:"grid",label:"Grid",icon:<LayoutGrid size={15}/>},{value:"list",label:"List",icon:<List size={15}/>},{value:"board",label:"Board",icon:<Target size={15}/>}]} value={view} onChange={value=>{setView(value as typeof view);localStorage.setItem("f-dash-goals-view",value)}} size="md" /></div><div className="goals-tools"><Seek width={240} height={38} value={search} onChange={setSearch} placeholder="Search goals" ariaLabel="Search goals"/><button onClick={()=>setFilters(!filters)} aria-expanded={filters}><SlidersHorizontal size={15}/> Filters</button><label>Sort <select value={sort} onChange={e=>setSort(e.target.value)}><option value="recent">Recently created</option><option value="updated">Recently updated</option><option value="deadline">Deadline</option><option value="priority">Priority</option><option value="progress">Progress</option><option value="custom">Custom order</option></select></label></div>{filters&&<div className="goals-filters"><label>Priority<select value={priority} onChange={e=>setPriority(e.target.value)}><option value="all">All</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label><label>Horizon<select value={horizon} onChange={e=>setHorizon(e.target.value)}><option value="all">All</option><option value="short">Short term</option><option value="long">Long term</option></select></label><label>Deadline<select value={deadline} onChange={e=>setDeadline(e.target.value)}><option value="all">Any</option><option value="soon">Next 7 days</option><option value="overdue">Overdue</option><option value="none">No deadline</option></select></label><label>Schedule<select value={schedule} onChange={e=>setSchedule(e.target.value)}><option value="all">All</option><option value="recurring">Recurring</option><option value="one-time">One-time</option></select></label><button onClick={clear}>Clear filters</button></div>}
+ <DashboardContentTransition transitionKey={tab+"-"+view}>
+ {!shown.length?<div className="goals-empty"><div><Target size={34}/></div><h4>{goals.length===0?"Begin with one goal":tab==="completed"?"No completed goals yet":"No matching goals"}</h4><p>{goals.length===0?"Give a meaningful ambition a place to grow. Start small and adjust as you go.":tab==="completed"?"Completed one-time goals will appear here.":"Try a different search or clear your filters."}</p><button className="goals-primary" onClick={()=>goals.length?clear():setDialog("new")}>{goals.length?"Clear filters":"Create your first goal"}</button></div>:view==="grid"?<div className="goals-grid">{shown.map(card)}</div>:view==="list"?<div className="goals-list"><div className="goals-list__head"><span>Goal</span><span>Priority</span><span>Horizon</span><span>Deadline</span><span>Progress</span><span>Status</span><span>Order</span></div>{shown.map((g,i)=><div className="goals-list__row" key={g.id} onClick={event=>{if((event.target as Element).closest("button"))return;setDialog(g)}}><button onClick={()=>setDialog(g)}>{g.title}<small>{g.description}</small></button><span className={"goals-priority goals-priority--"+g.priority}>{g.priority}</span><span>{g.horizon==="short"?"Short term":"Long term"}</span><span>{dateText(g.target_date)}</span><strong><AnimatedMetricValue value={goalProgress(g)}/>%</strong><span className={"goals-list__status"+(g.status==="completed"?" is-complete":"")}>{labels[g.status]}</span><div><button data-tooltip="Move up" aria-label={"Move "+g.title+" up"} disabled={i===0} onClick={()=>reorder(g,-1)}><ArrowUp size={14}/></button><button data-tooltip="Move down" aria-label={"Move "+g.title+" down"} disabled={i===shown.length-1} onClick={()=>reorder(g,1)}><ArrowDown size={14}/></button></div></div>)}</div>:<GoalsBoard goals={shown} renderCard={card} onStatus={status} onMove={moveBoard}/>}
+ </DashboardContentTransition></section></>}</div>
+ {selected&&<GoalEditor key={selected==="new"?"new":selected.id} goal={selected} onClose={()=>setDialog(null)} onSaved={()=>{void refresh();setNotice("Goal saved.")}} onDelete={setToDelete} onStatus={status} onStep={(s,d)=>void stepChange(s,d)} onOccurrence={(o,s)=>void occurrenceChange(o,s)} occurrence={selected==="new"?undefined:occurrences.find(o=>o.goal_id===selected.id&&o.status==="pending")}/>}
+ {toDelete&&createPortal(<div className="goals-backdrop"><div className="goals-confirm" role="alertdialog" aria-modal="true" aria-labelledby="delete-goal-title"><h2 id="delete-goal-title">Delete “{toDelete.title}”?</h2><p>This removes the goal and its steps, history, and occurrences.</p><div><button onClick={()=>setToDelete(null)}>Cancel</button><button className="goals-danger" onClick={()=>void remove()}>Delete goal</button></div></div></div>,document.body)}{createPortal(<div className="app-toast-viewport" aria-label="Notifications"><AnimatePresence initial={false}>{notice&&<SwipeToast key={`notice-${noticeSequence}`} kind="success" message={notice} onClose={()=>setNotice("")}/>}</AnimatePresence></div>,document.body)}</div>
 }

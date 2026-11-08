@@ -1,237 +1,231 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
+import { Mail, ArrowRight, Check } from "lucide-react";
 import { supabase } from "../lib/supabase";
-import logo from "../assets/F-Dash — Logo v2.png";
-import "./LoginPage.css";
+import { AuthShell } from "../components/auth/AuthShell";
+import { PasswordStrength } from "../components/auth/PasswordStrength";
+import { LabelInput } from "../components/ui/LabelInput";
+import "../components/ui/LabelInput.css";
+import { ensureProfile } from "../components/auth/authProfiles";
 
-function Shape({
-  width, height, rotate, top, left, right, bottom, color,
-}: {
-  width: number; height: number; rotate: number;
-  top?: string; left?: string; right?: string; bottom?: string; color: string;
-}) {
-  return (
-    <div
-      className="login-shape"
-      style={{
-        width, height,
-        transform: `rotate(${rotate}deg)`,
-        top, left, right, bottom,
-        background: `linear-gradient(to right, ${color}, transparent)`,
-      }}
-    />
-  );
+type Mode = "signin" | "signup" | "forgot" | "forgot-sent" | "verify-pending" | "verify-error" | "verify-success";
+
+function authMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : "Something went wrong. Please try again.";
+  if (/invalid login credentials/i.test(message)) return "Email or password is incorrect. Please try again.";
+  if (/email not confirmed/i.test(message)) return "Please verify your email before signing in.";
+  if (/rate limit|too many requests/i.test(message)) return "Too many attempts. Please wait a moment and try again.";
+  if (/already registered|already exists/i.test(message)) return "An account may already exist for this email. Try signing in or resetting your password.";
+  if (/weak password|password should|at least 6 characters/i.test(message)) return "Choose a longer password and try again.";
+  if (/network|fetch|offline/i.test(message)) return "Connection lost. Check your internet connection and try again.";
+  return "We couldn't complete that request. Please try again in a moment.";
 }
 
-type Mode = "signin" | "signup" | "forgot" | "forgot-sent";
+export function PasswordField({ id, label, value, onChange, autoComplete, error, shakeToken }: {
+  id: string; label: string; value: string; onChange: (value: string) => void;
+  autoComplete: string; error?: string; shakeToken?: number;
+}) {
+  return <LabelInput id={id} field={label} type="password" corner={20} value={value}
+    onChange={onChange} autoComplete={autoComplete} error={error} shakeToken={shakeToken} required minLength={6} />;
+}
 
 export default function LoginPage() {
+  const [mode, setMode] = useState<Mode>(() => {
+    if (location.search.includes("error=") || location.hash.includes("error=")) return "verify-error";
+    const requested = new URLSearchParams(location.search).get("mode");
+    return requested === "signup" || requested === "forgot" ? requested : "signin";
+  });
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState("");
-  const [successMsg, setSuccessMsg] = useState("");
-  const [mode, setMode] = useState<Mode>("signin");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [fieldError, setFieldError] = useState("");
+  const [errorField, setErrorField] = useState("");
+  const [shakeToken, setShakeToken] = useState(0);
+  const [notice, setNotice] = useState("");
   const navigate = useNavigate();
+  const verificationArrival = useRef(/type=(signup|email)/.test(location.hash) || new URLSearchParams(location.search).has("token_hash"));
+  const failField = (field: string, message: string) => {
+    setErrorField(field); setFieldError(message); setShakeToken(value => value + 1);
+  };
+  const clearField = (field: string) => {
+    if (errorField === field) { setErrorField(""); setFieldError(""); }
+  };
+  const fieldMessage = (field: string) => errorField === field ? fieldError : undefined;
+  const fieldShake = (field: string) => errorField === field ? shakeToken : 0;
+  const validEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+
+  useEffect(() => {
+    const onBack = () => {
+      const requested = new URLSearchParams(location.search).get("mode");
+      setMode(requested === "signup" || requested === "forgot" ? requested : "signin");
+      setError(""); setFieldError(""); setErrorField(""); setNotice("");
+    };
+    window.addEventListener("popstate", onBack);
+    return () => window.removeEventListener("popstate", onBack);
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const hash = new URLSearchParams(location.hash.slice(1));
+    const linkError = params.get("error_description") || hash.get("error_description") || params.get("error");
+    if (linkError) {
+      setMode("verify-error");
+      setError("This verification link is invalid or has expired. Request a new one below.");
+      history.replaceState(null, "", "/login");
+      return;
+    }
+    if (hash.get("type") === "recovery") return;
+    let active = true;
+    let redirectTimer: number | undefined;
+    async function restore() {
+      const tokenHash = params.get("token_hash");
+      if (tokenHash) {
+        const { error: verifyError } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: "email" });
+        if (!active) return;
+        history.replaceState(null, "", "/login");
+        if (verifyError) {
+          setMode("verify-error");
+          setError("This verification link is invalid or has expired. Request a new one below.");
+          return;
+        }
+      }
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!active || !session?.user?.email_confirmed_at) return;
+      try { await ensureProfile(session.user.id, String(session.user.user_metadata?.full_name ?? "")); }
+      catch { if (active) setError("Your account is signed in, but profile setup could not finish. Refresh to try again."); return; }
+      if (!active) return;
+      if (verificationArrival.current) {
+        setMode("verify-success");
+        redirectTimer = window.setTimeout(() => navigate("/", { replace: true }), 1200);
+      } else navigate("/", { replace: true });
+    }
+    void restore();
+    return () => { active = false; window.clearTimeout(redirectTimer); };
+  }, [navigate]);
 
   function switchMode(next: Mode) {
-    setMode(next);
-    setErrorMsg("");
-    setSuccessMsg("");
+    setMode(next); setError(""); setFieldError(""); setErrorField(""); setNotice("");
+    setPassword(""); setConfirmPassword("");
+    navigate(next === "signup" || next === "forgot" ? `/login?mode=${next}` : "/login");
   }
 
-  async function handleAuth(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setErrorMsg("");
-    setSuccessMsg("");
-
+  async function submitAuth(event: FormEvent) {
+    event.preventDefault();
+    if (busy) return;
+    setError(""); setFieldError(""); setErrorField(""); setNotice("");
+    if (mode === "signup") {
+      if (!fullName.trim()) { failField("name", "Enter your name."); return; }
+    }
+    if (!validEmail(email)) { failField("email", "Enter a valid email address."); return; }
+    if (mode === "signup" && password.length < 6) { failField("password", "Use at least 6 characters."); return; }
+    if (mode === "signin" && password.length < 6) { failField("password", password ? "Use at least 6 characters." : "Enter your password."); return; }
+    if (mode === "signup" && password !== confirmPassword) { failField("confirm", "Passwords do not match."); return; }
+    setBusy(true);
     try {
       if (mode === "signup") {
-        if (password !== confirmPassword) throw new Error("Passwords do not match.");
-        const { error } = await supabase.auth.signUp({ email, password });
-        if (error) throw error;
-        setSuccessMsg("Sign up successful! Please confirm via email then sign in.");
-        switchMode("signin");
-      } else if (mode === "signin") {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        navigate("/");
+        const { data, error: authError } = await supabase.auth.signUp({
+          email: email.trim(), password,
+          options: { data: { full_name: fullName.trim() }, emailRedirectTo: `${location.origin}/login` },
+        });
+        if (authError) throw authError;
+        if (data.session?.user.email_confirmed_at) {
+          await ensureProfile(data.session.user.id, fullName);
+          navigate("/", { replace: true });
+        } else setMode("verify-pending");
+      } else {
+        const { data, error: authError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+        if (authError) throw authError;
+        if (!data.user?.email_confirmed_at) { setMode("verify-pending"); return; }
+        await ensureProfile(data.user.id, String(data.user.user_metadata?.full_name ?? ""));
+        navigate("/", { replace: true });
       }
-    } catch (error: any) {
-      setErrorMsg(error.message || "Something went wrong.");
-    } finally {
-      setLoading(false);
+    } catch (caught) {
+      const message = authMessage(caught);
+      const raw = caught instanceof Error ? caught.message : "";
+      if (/invalid login credentials/i.test(raw)) failField("password", message);
+      else if (/already registered|already exists|invalid email/i.test(raw)) failField("email", message);
+      else if (/weak password|password should|at least 6 characters/i.test(raw)) failField("password", message);
+      else setError(message);
     }
+    finally { setBusy(false); }
   }
 
-  async function handleForgotPassword(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setErrorMsg("");
-
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
-      });
-      if (error) throw error;
-      switchMode("forgot-sent");
-    } catch (error: any) {
-      setErrorMsg(error.message || "Failed to send reset email.");
-    } finally {
-      setLoading(false);
-    }
+  async function sendReset(event: FormEvent) {
+    event.preventDefault(); if (busy) return;
+    if (!validEmail(email)) { failField("email", "Enter a valid email address."); return; }
+    setBusy(true); setError("");
+    const { error: authError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${location.origin}/reset-password`,
+    });
+    setBusy(false);
+    if (authError) setError(authMessage(authError)); else setMode("forgot-sent");
   }
 
-  const titles: Record<Mode, { heading: string; sub: string }> = {
-    signin:       { heading: "Finance Dashboard", sub: "Sign in to your account" },
-    signup:       { heading: "Finance Dashboard", sub: "Create a new account" },
-    forgot:       { heading: "Reset Password",    sub: "Enter your email to receive a reset link" },
-    "forgot-sent":{ heading: "Check Your Email",  sub: `A reset link was sent to ${email}` },
-  };
+  async function resend() {
+    if (busy) return;
+    if (!validEmail(email)) { failField("email", "Enter a valid email address."); return; }
+    setBusy(true); setError(""); setNotice("");
+    const { error: authError } = await supabase.auth.resend({ type: "signup", email: email.trim(),
+      options: { emailRedirectTo: `${location.origin}/login` } });
+    setBusy(false);
+    if (authError) setError(authMessage(authError)); else setNotice("A new verification link is on its way. Check your inbox.");
+  }
 
-  return (
-    <div className="login-page">
-      <div className="login-shapes">
-        <Shape width={600} height={140} rotate={12}  top="20%"    left="-5%"  color="rgba(232,123,58,0.18)" />
-        <Shape width={500} height={120} rotate={-15} top="70%"    right="-2%" color="rgba(232,123,58,0.13)" />
-        <Shape width={300} height={80}  rotate={-8}  bottom="10%" left="8%"   color="rgba(180,80,20,0.15)"  />
-        <Shape width={200} height={60}  rotate={20}  top="12%"    right="18%" color="rgba(232,123,58,0.12)" />
-        <Shape width={150} height={40}  rotate={-25} top="6%"     left="24%"  color="rgba(255,160,80,0.10)" />
-      </div>
+  const title = {
+    signin: ["Welcome back.", "Sign in to continue to F-Dash."],
+    signup: ["Create your account.", "Your F-Dash workspace starts here."],
+    forgot: ["Reset your password.", "We'll send a secure link to your email."],
+    "forgot-sent": ["Check your inbox.", "If an account exists for this address, a reset link is on its way."],
+    "verify-pending": ["Verify your email.", "Open the link we sent to finish setting up your account."],
+    "verify-error": ["Link expired.", "Request a fresh verification link to continue."],
+    "verify-success": ["Email verified.", "Your F-Dash workspace is ready."],
+  }[mode];
 
-      <div className="login-ambient" />
-
-      <div className="login-card card">
-        <div className="login-card__header">
-          <div className="login-card__logo">
-            <img src={logo} alt="F-Dash Logo" />
-          </div>
-          <h2>{titles[mode].heading}</h2>
-          <p>{titles[mode].sub}</p>
-        </div>
-
-        {/* Alerts */}
-        {errorMsg && <div className="login-alert">{errorMsg}</div>}
-        {successMsg && <div className="login-alert login-alert--success">{successMsg}</div>}
-
-        {/* Sign In / Sign Up form */}
-        {(mode === "signin" || mode === "signup") && (
-          <form className="login-form" onSubmit={handleAuth}>
-            <div className="form-group">
-              <label htmlFor="email">Email</label>
-              <input
-                id="email" type="email" required
-                value={email} onChange={(e) => setEmail(e.target.value)}
-                placeholder="nick@example.com"
-              />
-            </div>
-
-            <div className="form-group">
-              <div className="login-password-label">
-                <label htmlFor="password">Password</label>
-                {mode === "signin" && (
-                  <button
-                    type="button"
-                    className="text-btn text-btn--small"
-                    onClick={() => switchMode("forgot")}
-                  >
-                    Forgot password?
-                  </button>
-                )}
-              </div>
-              <input
-                id="password" type="password" required
-                value={password} onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-              />
-            </div>
-
-            {mode === "signup" && (
-              <div className="form-group">
-                <label htmlFor="confirmPassword">Confirm Password</label>
-                <input
-                  id="confirmPassword" type="password" required
-                  value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="••••••••"
-                />
-              </div>
-            )}
-
-            <button type="submit" className="btn btn--primary login-submit" disabled={loading}>
-              {loading ? "Processing..." : mode === "signin" ? "Sign In" : "Sign Up"}
-            </button>
-          </form>
-        )}
-
-        {/* Forgot password form */}
-        {mode === "forgot" && (
-          <form className="login-form" onSubmit={handleForgotPassword}>
-            <div className="form-group">
-              <label htmlFor="reset-email">Email</label>
-              <input
-                id="reset-email" type="email" required
-                value={email} onChange={(e) => setEmail(e.target.value)}
-                placeholder="nick@example.com"
-              />
-            </div>
-            <button type="submit" className="btn btn--primary login-submit" disabled={loading}>
-              {loading ? "Sending..." : "Send Reset Link"}
-            </button>
-            <button
-              type="button"
-              className="btn btn--outline login-submit"
-              onClick={() => switchMode("signin")}
-            >
-              Back to Sign In
-            </button>
-          </form>
-        )}
-
-        {/* Email sent confirmation */}
-        {mode === "forgot-sent" && (
-          <div className="login-sent">
-            <div className="login-sent__icon">
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-                <polyline points="22,6 12,13 2,6" />
-              </svg>
-            </div>
-            <p className="login-sent__text">
-              Check your inbox and click the link to reset your password. You can close this page.
-            </p>
-            <button
-              type="button"
-              className="btn btn--outline login-submit"
-              onClick={() => switchMode("signin")}
-            >
-              Back to Sign In
-            </button>
-          </div>
-        )}
-
-        {/* Toggle signin/signup */}
-        {(mode === "signin" || mode === "signup") && (
-          <div className="login-toggle">
-            {mode === "signin" ? (
-              <p>
-                Don't have an account?{" "}
-                <button type="button" className="text-btn" onClick={() => switchMode("signup")}>
-                  Sign up
-                </button>
-              </p>
-            ) : (
-              <p>
-                Already have an account?{" "}
-                <button type="button" className="text-btn" onClick={() => switchMode("signin")}>
-                  Sign in
-                </button>
-              </p>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
+  return <AuthShell intro={!verificationArrival.current && mode !== "verify-error"} compact={mode === "signup"}>
+    <header className="auth-header"><h1>{title[0]}</h1><p>{title[1]}</p></header>
+    {error && <p className="auth-alert" role="alert">{error}</p>}
+    {notice && <p className="auth-alert auth-alert--success" role="status">{notice}</p>}
+    {(mode === "signin" || mode === "signup") && <form className="auth-form" onSubmit={submitAuth} noValidate>
+      {mode === "signup" && <LabelInput id="auth-name" field="Full name" type="text" corner={20}
+        value={fullName} onChange={value => { setFullName(value); clearField("name"); }} autoComplete="name" required
+        error={fieldMessage("name")} shakeToken={fieldShake("name")} />}
+      <LabelInput id="auth-email" field="Email" type="email" corner={20}
+        value={email} onChange={value => { setEmail(value); clearField("email"); }} autoComplete="email" inputMode="email" required
+        error={fieldMessage("email")} shakeToken={fieldShake("email")} />
+      <PasswordField id="auth-password" label="Password" value={password} onChange={value => { setPassword(value); clearField("password"); }}
+        autoComplete={mode === "signin" ? "current-password" : "new-password"}
+        error={fieldMessage("password")} shakeToken={fieldShake("password")} />
+      {mode === "signup" && <><PasswordStrength password={password} className="auth-strength" />
+        <PasswordField id="auth-confirm" label="Confirm password" value={confirmPassword}
+          onChange={value => { setConfirmPassword(value); clearField("confirm"); }} autoComplete="new-password"
+          error={fieldMessage("confirm")} shakeToken={fieldShake("confirm")} /></>}
+      {mode === "signin" && <button type="button" className="auth-text-link auth-forgot" onClick={() => switchMode("forgot")}>Forgot password?</button>}
+      <button className="auth-primary" type="submit" disabled={busy}>
+        {busy ? <><span className="auth-spinner" />{mode === "signin" ? "Signing in…" : "Creating account…"}</> : <>{mode === "signin" ? "Sign in" : "Create account"}<ArrowRight size={18} /></>}
+      </button>
+    </form>}
+    {mode === "forgot" && <form className="auth-form" onSubmit={sendReset} noValidate>
+      <LabelInput id="auth-reset-email" field="Email" type="email" corner={20}
+        value={email} onChange={value => { setEmail(value); clearField("email"); }} autoComplete="email" inputMode="email" required
+        error={fieldMessage("email")} shakeToken={fieldShake("email")} />
+      <button className="auth-primary" type="submit" disabled={busy}>{busy ? "Sending…" : "Send reset link"}</button>
+    </form>}
+    {(mode === "forgot-sent" || mode === "verify-pending" || mode === "verify-error" || mode === "verify-success") && <div className="auth-message">
+      <div className="auth-message-icon">{mode === "verify-success" ? <Check size={25} strokeWidth={1.7} /> : <Mail size={25} strokeWidth={1.6} />}</div>
+      {email && <p className="auth-message-email">{email}</p>}
+      {mode === "verify-error" && !email && <div className="auth-message-field"><LabelInput id="auth-resend-email" field="Email" type="email" corner={20}
+        value={email} onChange={value => { setEmail(value); clearField("email"); }} autoComplete="email" inputMode="email" required
+        error={fieldMessage("email")} shakeToken={fieldShake("email")} /></div>}
+      {mode !== "forgot-sent" && mode !== "verify-success" && <button type="button" className="auth-primary" onClick={resend} disabled={busy}>{busy ? "Sending…" : "Resend verification email"}</button>}
+    </div>}
+    {mode !== "verify-success" && <footer className="auth-footer">
+      {mode === "signin" ? <>New to F-Dash? <button className="auth-text-link" type="button" onClick={() => switchMode("signup")}>Create an account</button></> :
+        mode === "signup" ? <>Already have an account? <button className="auth-text-link" type="button" onClick={() => switchMode("signin")}>Sign in</button></> :
+        <button className="auth-text-link" type="button" onClick={() => switchMode("signin")}>Back to sign in</button>}
+    </footer>}
+  </AuthShell>;
 }

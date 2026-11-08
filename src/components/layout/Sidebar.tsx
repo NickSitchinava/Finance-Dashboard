@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type CSSProperties, type ReactNode, type PointerEvent, type FocusEvent } from "react";
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { useProfile } from "../auth/ProfileContext";
@@ -57,11 +57,6 @@ const icons: Record<string, ReactNode> = {
       <line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" />
     </svg>
   ),
-  chat: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-    </svg>
-  ),
   settings: (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="3" />
@@ -78,86 +73,105 @@ const icons: Record<string, ReactNode> = {
 };
 
 interface SidebarProps {
-  isOpen?: boolean;
-  closeSidebar?: () => void;
-  onToggleChat?: () => void;
+  isOpen: boolean;
+  isMobile: boolean;
+  isCollapsed: boolean;
+  closeSidebar: () => void;
+  onDesktopHoverChange: (hovered: boolean) => void;
+  onDesktopFocusChange: (focused: boolean) => void;
 }
 
-export default function Sidebar({ isOpen, closeSidebar, onToggleChat }: SidebarProps) {
-  const { session, signOut } = useAuth();
-  const { avatarUrl, fullName } = useProfile();
+type Highlight = { y: number; height: number; visible: boolean };
+const emptyHighlight: Highlight = { y: 0, height: 0, visible: false };
 
+export default function Sidebar({ isOpen, isMobile, isCollapsed, closeSidebar, onDesktopHoverChange, onDesktopFocusChange }: SidebarProps) {
+  const { session, signOut } = useAuth();
+  const { avatarUrl, fullName, loading: profileLoading } = useProfile();
+  const [loadedAvatarUrl, setLoadedAvatarUrl] = useState("");
+  const [failedAvatarUrl, setFailedAvatarUrl] = useState("");
+  const visibleAvatarUrl = profileLoading ? "" : avatarUrl;
+  const avatarLoading = profileLoading || Boolean(visibleAvatarUrl && loadedAvatarUrl !== visibleAvatarUrl && failedAvatarUrl !== visibleAvatarUrl);
+  const [mainHighlight, setMainHighlight] = useState<Highlight>(emptyHighlight);
+  const [utilityHighlight, setUtilityHighlight] = useState<Highlight>(emptyHighlight);
+  const [tooltip, setTooltip] = useState<{ label: string; y: number } | null>(null);
+  const showTooltip = (label: string, element: HTMLElement) => {
+    if (!isMobile && isCollapsed) {
+      const rect = element.getBoundingClientRect();
+      setTooltip({ label, y: rect.top + rect.height / 2 });
+    }
+  };
+  const moveHighlight = (event: PointerEvent<HTMLElement>, group: "main" | "utility") => {
+    if (event.pointerType === "touch") return;
+    const item = event.currentTarget;
+    const parent = item.closest("[data-nav-group]");
+    if (!parent) return;
+    const itemRect = item.getBoundingClientRect();
+    const parentRect = parent.getBoundingClientRect();
+    const next = { y: itemRect.top - parentRect.top, height: itemRect.height, visible: true };
+    if (group === "main") setMainHighlight(next);
+    else setUtilityHighlight(next);
+  };
+  const tooltipProps = (label: string) => ({
+    onFocus: (event: FocusEvent<HTMLElement>) => showTooltip(label, event.currentTarget),
+    onBlur: () => setTooltip(null),
+    onMouseEnter: (event: { currentTarget: HTMLElement }) => showTooltip(label, event.currentTarget),
+    onMouseLeave: () => setTooltip(null),
+  });
   const initials = fullName
     ? fullName.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2)
     : "FD";
+  const highlightStyle = (highlight: Highlight): CSSProperties => ({
+    height: highlight.height,
+    transform: `translateY(${highlight.y}px)`,
+    opacity: highlight.visible ? 1 : 0,
+  });
 
   return (
-    <aside className={`sidebar${isOpen ? " sidebar--open" : ""}`}>
-      <NavLink to="/" className="sidebar__profile" onClick={closeSidebar}>
-        <div className="sidebar__avatar" style={avatarUrl ? { background: "transparent" } : {}}>
-          {avatarUrl ? (
-            <img src={avatarUrl} alt={fullName || "Profile"} />
-          ) : (
-            initials
-          )}
-        </div>
-        <div className="sidebar__profile-info">
-          <span className="sidebar__name">{fullName || "Finance Dashboard"}</span>
-          <span className="sidebar__status">
-            <span className="sidebar__online-dot" />
-            Online
-          </span>
-        </div>
-      </NavLink>
+    <aside id="app-sidebar" className={`sidebar${isOpen ? " sidebar--open" : ""}${isCollapsed && !isMobile ? " sidebar--collapsed" : ""}`} aria-label="Application navigation" aria-modal={isOpen ? true : undefined} role={isOpen ? "dialog" : undefined} inert={isMobile && !isOpen}
+      onPointerEnter={(event) => { if (!isMobile && event.pointerType !== "touch") { setTooltip(null); onDesktopHoverChange(true); } }}
+      onPointerLeave={(event) => { if (!isMobile && event.pointerType !== "touch") { onDesktopHoverChange(false); onDesktopFocusChange(false); } }}
+      onFocusCapture={() => { if (!isMobile) onDesktopFocusChange(true); }}
+      onBlurCapture={(event) => { if (!isMobile && !event.currentTarget.contains(event.relatedTarget)) onDesktopFocusChange(false); }}>
+      <div className="sidebar__top">
+        <NavLink to="/settings?tab=general" className="sidebar__profile" aria-label={fullName ? `${fullName} — Profile settings` : "Profile settings"} onClick={closeSidebar} {...tooltipProps(fullName || "Profile settings")}>
+          <div className={`sidebar__avatar${avatarLoading ? " sidebar__avatar--loading" : ""}${visibleAvatarUrl && loadedAvatarUrl === visibleAvatarUrl ? " sidebar__avatar--image" : ""}`}>
+            {!avatarLoading && (!visibleAvatarUrl || failedAvatarUrl === visibleAvatarUrl) ? initials : null}
+            {visibleAvatarUrl && failedAvatarUrl !== visibleAvatarUrl && <img src={visibleAvatarUrl} alt="" style={loadedAvatarUrl === visibleAvatarUrl ? undefined : { visibility: "hidden" }} onLoad={() => setLoadedAvatarUrl(visibleAvatarUrl)} onError={() => setFailedAvatarUrl(visibleAvatarUrl)} />}
+          </div>
+          <div className="sidebar__profile-info">
+            <span className="sidebar__name">{fullName || "Finance Dashboard"}</span>
+            <span className="sidebar__status"><span className="sidebar__online-dot" />Online</span>
+          </div>
+        </NavLink>
+        {isMobile && <button type="button" className="sidebar__toggle" onClick={closeSidebar} aria-label="Close navigation" aria-expanded={isOpen} title="Close navigation">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+        </button>}
+      </div>
 
-      <nav className="sidebar__nav">
+      <nav className="sidebar__nav" aria-label="Main navigation">
         <span className="sidebar__section-label">Menu</span>
-        <ul className="sidebar__list">
+        <ul className="sidebar__list" data-nav-group onPointerLeave={() => setMainHighlight((previous) => ({ ...previous, visible: false }))}>
+          <span className="sidebar__hover" style={highlightStyle(mainHighlight)} aria-hidden="true" />
           {navItems.map((item) => (
             <li key={item.path}>
-              <NavLink
-                to={item.path}
-                className={({ isActive }) =>
-                  `sidebar__link${isActive ? " sidebar__link--active" : ""}`
-                }
-                end={item.path === "/"}
-                onClick={closeSidebar}
-              >
-                <span className="sidebar__icon">{icons[item.icon]}</span>
-                <span>{item.label}</span>
+              <NavLink to={item.path} className={({ isActive }) => `sidebar__link${isActive ? " sidebar__link--active" : ""}`} end={item.path === "/"} aria-label={item.label} onClick={closeSidebar} onPointerEnter={(event) => moveHighlight(event, "main")} {...tooltipProps(item.label)}>
+                <span className="sidebar__icon">{icons[item.icon]}</span><span className="sidebar__link-label">{item.label}</span>
               </NavLink>
             </li>
           ))}
-          <li>
-            <button
-              className="sidebar__link sidebar__link--btn"
-              onClick={() => { onToggleChat?.(); closeSidebar?.(); }}
-            >
-              <span className="sidebar__icon">{icons.chat}</span>
-              <span>AI Assistant</span>
-            </button>
-          </li>
         </ul>
       </nav>
 
-      <div className="sidebar__bottom">
-        <NavLink
-          to="/settings"
-          className={({ isActive }) =>
-            `sidebar__link${isActive ? " sidebar__link--active" : ""}`
-          }
-          onClick={closeSidebar}
-        >
-          <span className="sidebar__icon">{icons.settings}</span>
-          <span>Settings</span>
+      <div className="sidebar__bottom" data-nav-group onPointerLeave={() => setUtilityHighlight((previous) => ({ ...previous, visible: false }))}>
+        <span className="sidebar__hover" style={highlightStyle(utilityHighlight)} aria-hidden="true" />
+        <NavLink to="/settings" className={({ isActive }) => `sidebar__link${isActive ? " sidebar__link--active" : ""}`} aria-label="Settings" onClick={closeSidebar} onPointerEnter={(event) => moveHighlight(event, "utility")} {...tooltipProps("Settings")}>
+          <span className="sidebar__icon">{icons.settings}</span><span className="sidebar__link-label">Settings</span>
         </NavLink>
-        {session && (
-          <button className="sidebar__link sidebar__link--btn" onClick={signOut}>
-            <span className="sidebar__icon">{icons.logout}</span>
-            <span>Logout</span>
-          </button>
-        )}
+        {session && <button className="sidebar__link sidebar__link--btn" aria-label="Logout" onClick={() => { closeSidebar(); void signOut(); }} onPointerEnter={(event) => moveHighlight(event, "utility")} {...tooltipProps("Logout")}>
+          <span className="sidebar__icon">{icons.logout}</span><span className="sidebar__link-label">Logout</span>
+        </button>}
       </div>
+      {tooltip && isCollapsed && <span className="sidebar__tooltip" style={{ top: tooltip.y }} role="tooltip">{tooltip.label}</span>}
     </aside>
   );
 }

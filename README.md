@@ -53,16 +53,9 @@ npm run lint        # run ESLint
 npm run preview     # preview the production build
 ```
 
-## Test Account
+## Test Access
 
-Use the credentials below to log in and explore the dashboard with sample data:
-
-| Field    | Value                       |
-|----------|-----------------------------|
-| Email    | `nicksitchinava@gmail.com`  |
-| Password | `Nick2009!`                 |
-
-> For testing purposes only — please don't change the account details.
+Use a dedicated test account configured in your Supabase project to explore the dashboard with sample data.
 
 ## Notes
 

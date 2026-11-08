@@ -1,0 +1,140 @@
+.dashboard-skel {
+  min-height: calc(100vh - 60px);
+  margin: -28px -32px;
+  padding: 22px clamp(20px, 2.3vw, 34px) 32px;
+  background: #f7f7ff;
+  color: #27187e;
+}
+.dashboard-skel__bar {
+  display: block;
+  flex: none;
+  max-width: 100%;
+  border-radius: 6px;
+  background: linear-gradient(100deg, #e9e5f2 20%, #f5f2fa 48%, #e9e5f2 78%);
+  background-size: 220% 100%;
+  animation: dashboard-skel-shimmer 1.6s linear infinite;
+}
+.dashboard-skel__toolbar,
+.dashboard-skel__collection-head,
+.dashboard-skel__panel-head,
+.dashboard-skel__card-top,
+.dashboard-skel__card-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.dashboard-skel__toolbar { margin-bottom: 18px; min-height: 36px; }
+.dashboard-skel__toolbar > div:not(.dashboard-skel__tabs),
+.dashboard-skel__panel-head > div { display: grid; gap: 8px; }
+.dashboard-skel__metrics,
+.dashboard-skel__overview-kpis,
+.dashboard-skel__finance-kpis { display: grid; gap: 12px; margin-bottom: 18px; }
+.dashboard-skel__metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.dashboard-skel__overview-kpis { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.dashboard-skel__finance-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.dashboard-skel__metric {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  min-height: 108px;
+  padding: 16px 17px;
+  border: 1px solid #e4e0ed;
+  border-radius: 13px;
+  background: #fff;
+}
+.dashboard-skel__metric--primary { background: #27187e; border-color: #27187e; }
+.dashboard-skel__metric--primary .dashboard-skel__bar {
+  background: linear-gradient(100deg, #ffffff24 20%, #ffffff4a 48%, #ffffff24 78%);
+  background-size: 220% 100%;
+}
+.dashboard-skel__collection,
+.dashboard-skel__panel {
+  min-width: 0;
+  padding: 18px 19px;
+  border: 1px solid #e4e0ed;
+  border-radius: 14px;
+  background: #fff;
+}
+.dashboard-skel__tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 4px;
+  border-radius: 12px;
+  background: #eeecf8;
+}
+.dashboard-skel__tabs .dashboard-skel__bar { background: #fff; }
+.dashboard-skel__collection-head {
+  padding-bottom: 13px;
+  border-bottom: 1px solid #eae7f1;
+}
+.dashboard-skel__filters { display: grid; grid-template-columns: 1.6fr repeat(4, 1fr); gap: 8px; margin: 14px 0; }
+.dashboard-skel__filters .dashboard-skel__bar { border: 1px solid #ebe7f2; background: #f5f2fa; }
+.dashboard-skel__project-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.dashboard-skel__project-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+  min-height: 252px;
+  padding: 16px;
+  border: 1px solid #e8e4ef;
+  border-radius: 12px;
+}
+.dashboard-skel__card-top,
+.dashboard-skel__card-foot { width: 100%; }
+.dashboard-skel__tags { display: flex; gap: 6px; margin-top: 12px; }
+.dashboard-skel__project-card > .dashboard-skel__bar:nth-last-child(2) { margin-top: auto; }
+.dashboard-skel__card-foot { padding-top: 11px; border-top: 1px solid #f0edf5; }
+.dashboard-skel__overview-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(260px, 1fr); gap: 12px; }
+.dashboard-skel__panel { display: grid; gap: 16px; }
+.dashboard-skel__panel--chart { min-height: 310px; }
+.dashboard-skel__panel--finance-chart { min-height: 350px; }
+.dashboard-skel__chart {
+  position: relative;
+  height: 175px;
+  overflow: hidden;
+  border-bottom: 1px solid #e9e6f0;
+  background: repeating-linear-gradient(to bottom, transparent 0, transparent 42px, #eeeaf5 43px, #eeeaf5 44px);
+}
+.dashboard-skel__chart-shape {
+  position: absolute;
+  right: 5%;
+  bottom: 0;
+  left: 7%;
+  height: 70%;
+  background: #eae5f6;
+  clip-path: polygon(0 80%, 15% 66%, 30% 72%, 45% 39%, 60% 54%, 75% 24%, 87% 42%, 100% 6%, 100% 100%, 0 100%);
+}
+.dashboard-skel__panel--list { align-content: start; }
+.dashboard-skel__list-row { display: flex; align-items: center; gap: 10px; padding: 11px 0; border-top: 1px solid #eeeaf4; }
+.dashboard-skel__list-row .dashboard-skel__bar:nth-child(2) { flex: 1; }
+@keyframes dashboard-skel-shimmer { to { background-position-x: -220%; } }
+@media (max-width: 1100px) {
+  .dashboard-skel__overview-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .dashboard-skel__project-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dashboard-skel__project-card:nth-child(3) { display: none; }
+}
+@media (max-width: 768px) {
+  .dashboard-skel { margin: -20px -16px; padding: 17px 13px 28px; }
+  .dashboard-skel__metrics,
+  .dashboard-skel__overview-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dashboard-skel__finance-kpis,
+  .dashboard-skel__overview-grid,
+  .dashboard-skel__project-cards { grid-template-columns: 1fr; }
+  .dashboard-skel__metric { min-height: 100px; }
+  .dashboard-skel__filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dashboard-skel__filters .dashboard-skel__bar:first-child { grid-column: 1 / -1; }
+  .dashboard-skel__project-card:nth-child(n + 2) { display: none; }
+  .dashboard-skel__toolbar { flex-wrap: wrap; }
+  .dashboard-skel__toolbar > .dashboard-skel__bar { max-width: 42%; }
+  .dashboard-skel__tabs { max-width: 100%; overflow: hidden; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-skel__bar { animation: none; }
+}

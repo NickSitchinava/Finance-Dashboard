@@ -520,7 +520,7 @@ export default function SettingsPage() {
     setClearStep(0);
     await fetchAll();
     window.dispatchEvent(new Event("f-dash:data-cleared"));
-    notify("success", "Application data cleared. Your account remains active.");
+    notify("success", "Application data cleared. Your GitHub connection remains active.");
   }
   const closeClear = () => {
     if (clearing) return;

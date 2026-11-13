@@ -1,7 +1,9 @@
 -- Run as a single SQL request against an isolated test database or in a
 -- transaction on the live database. The synthetic account is rolled back.
 begin;
-set local request.jwt.claim.role = 'service_role';
+
+-- Secret service keys authorize the service_role database role without
+-- populating the legacy request.jwt.claim.role setting.
 
 do $$
 declare

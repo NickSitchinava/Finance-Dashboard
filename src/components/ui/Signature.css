@@ -3,6 +3,7 @@
 .sig { position: relative; flex: none; transition: width 600ms cubic-bezier(0.22, 1, 0.36, 1), height 600ms cubic-bezier(0.22, 1, 0.36, 1), border-radius 600ms cubic-bezier(0.22, 1, 0.36, 1); border-radius: var(--r); overflow: hidden; background: var(--fill-slab, var(--card)); color: var(--fill-on, var(--ink)); font-family: var(--font-ui); touch-action: none; user-select: none; -webkit-user-select: none; cursor: crosshair; }
 [data-stroke="on"] .sig { box-shadow: inset 0 0 0 1px var(--pane-edge); }
 .sig-ink { position: absolute; inset: 0; pointer-events: none; overflow: visible; --sig-c: var(--fill-on, var(--ink)); color: var(--sig-c); transition: color 260ms ease; }
+.sig-touchpad-cursor { position: absolute; width: 9px; height: 9px; border: 1.5px solid var(--signal, #4935a5); border-radius: 50%; background: #fff; box-shadow: 0 0 0 1px #fff; transform: translate(-50%, -50%); pointer-events: none; }
 .sig[data-ink="Blue"] .sig-ink { --sig-c: #2446d8; }
 [data-fill="dark"] .sig[data-ink="Blue"] .sig-ink { --sig-c: #7d95ff; }
 .sig[data-settled] .sig-ink { color: color-mix(in srgb, var(--sig-c) 30%, var(--fill-slab, var(--card))); }

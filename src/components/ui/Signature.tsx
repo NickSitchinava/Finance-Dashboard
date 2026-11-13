@@ -82,6 +82,8 @@ export function Signature({
   corner = 20,
   initialStrokes = [],
   onChange,
+  touchpadMode = false,
+  touchpadSpeed = 0.3,
 }: {
   pen?: number;
   smooth?: number;
@@ -90,6 +92,8 @@ export function Signature({
   corner?: number;
   initialStrokes?: Pt[][];
   onChange?: (strokes: Pt[][] | null) => void;
+  touchpadMode?: boolean;
+  touchpadSpeed?: number;
 } = {}) {
   const pad = useRef<HTMLDivElement>(null);
   const strokes = useRef<Pt[][]>(initialStrokes.map(s => s.map(p => ({ ...p }))));
@@ -103,6 +107,8 @@ export function Signature({
      softened to a tint, and the pad has not yet folded away */
   const [settled, setSettled] = useState(false);
   const down = useRef(false);
+  const touchpadCursor = useRef({ x: 0, y: 0 });
+  const [touchpadDrawing, setTouchpadDrawing] = useState(false);
   const last = useRef({ x: 0, y: 0, t: 0, w: 0 });
   const later = useRef(0);
   const raf = useRef(0);
@@ -114,6 +120,14 @@ export function Signature({
     clearTimeout(fold.current);
     clearTimeout(later.current);
     cancelAnimationFrame(raf.current);
+    if (document.pointerLockElement === pad.current) document.exitPointerLock();
+  }, []);
+  useEffect(() => {
+    const onLockChange = () => {
+      if (document.pointerLockElement !== pad.current) setTouchpadDrawing(false);
+    };
+    document.addEventListener("pointerlockchange", onLockChange);
+    return () => document.removeEventListener("pointerlockchange", onLockChange);
   }, []);
 
   /* the pen's two widths, both of which move with the knob so
@@ -144,6 +158,18 @@ export function Signature({
     /* pen back on the pad before it folded: the ink comes back too */
     setSettled(false);
     const p = local(e);
+    touchpadCursor.current = p;
+    if (touchpadMode && e.pointerType === "mouse") {
+      const target = e.currentTarget;
+      try {
+        void Promise.resolve(target.requestPointerLock?.()).then(() => {
+          if (!down.current && document.pointerLockElement === target) document.exitPointerLock();
+          else if (document.pointerLockElement === target) setTouchpadDrawing(true);
+        }).catch(() => setTouchpadDrawing(false));
+      } catch {
+        setTouchpadDrawing(false);
+      }
+    }
     const { thin, thick } = widths();
     const w = (thin + thick) / 2;
     last.current = { ...p, t: performance.now(), w };
@@ -153,7 +179,16 @@ export function Signature({
 
   const onMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!down.current) return;
-    const raw = local(e);
+    let raw = local(e);
+    if (document.pointerLockElement === pad.current) {
+      const bounds = pad.current!.getBoundingClientRect();
+      const speed = clamp(touchpadSpeed, 0.15, 1);
+      raw = {
+        x: clamp(touchpadCursor.current.x + e.movementX * W / bounds.width * speed, 2, W - 2),
+        y: clamp(touchpadCursor.current.y + e.movementY * H / bounds.height * speed, 2, H - 2),
+      };
+      touchpadCursor.current = raw;
+    }
     const l = last.current;
     /* smoothing: the pen follows the hand on a lag */
     const k = 1 - (clamp(knobs.current.smooth, 0, 100) / 100) * 0.75;
@@ -175,6 +210,8 @@ export function Signature({
 
   const onUp = (e: React.PointerEvent<HTMLDivElement>) => {
     try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* never captured */ }
+    if (document.pointerLockElement === pad.current) document.exitPointerLock();
+    setTouchpadDrawing(false);
     if (!down.current) return;
     down.current = false;
     if (strokes.current.at(-1)?.length === 1) {
@@ -254,6 +291,7 @@ export function Signature({
       data-inked={(inked && !rewinding && !signed) || undefined}
       data-settled={(settled || signed) || undefined}
       data-signed={signed || undefined}
+      data-touchpad-drawing={touchpadDrawing || undefined}
       style={{
         /* width and height, never a scale: the corner has to stay
            a corner all the way down to the pill */
@@ -289,6 +327,7 @@ export function Signature({
         {ink$}
       </svg>
       </div>
+      {touchpadDrawing && <span className="sig-touchpad-cursor" style={{ left: touchpadCursor.current.x, top: touchpadCursor.current.y }} aria-hidden="true" />}
       <button
         type="button"
         className="sig-clear"

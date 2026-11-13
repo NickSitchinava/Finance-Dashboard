@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { FormEvent, ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence } from "motion/react";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, Check } from "lucide-react";
 import SwipeToast from "../components/ui/SwipeToast";
 import AnimatedList from "../components/ui/AnimatedList";
 import RubberSegment from "../components/ui/RubberSegment";
@@ -1170,7 +1170,7 @@ function Workspace({
                       )
                     }
                   >
-                    {task.status === "done" ? "✓" : ""}
+                    <Check aria-hidden="true" size={13} strokeWidth={2.5} />
                   </button>
                   <div>
                     <strong>{task.title}</strong>
@@ -1900,7 +1900,6 @@ export default function ProjectsPage() {
   const showGitHub = useGitHub();
   const [data, setData] = useState<Data>(() => dashboardSnapshot<Data>(`${user?.id}|projects`) ?? blank);
   const [loading, setLoading] = useState(() => !dashboardSnapshot<Data>(`${user?.id}|projects`));
-  const [refreshing, setRefreshing] = useState(false);
   const [error, setErrorState] = useState("");
   const [notice, setNoticeState] = useState("");
   const [errorSequence, setErrorSequence] = useState(0);
@@ -1955,7 +1954,6 @@ export default function ProjectsPage() {
     async (initial = false) => {
       if (!user) return;
       if (initial && !dashboardSnapshot<Data>(`${user.id}|projects`)) setLoading(true);
-      else setRefreshing(true);
       setError("");
       const results = await Promise.all([
         supabase
@@ -2031,7 +2029,6 @@ export default function ProjectsPage() {
         setData(nextData);
       }
       setLoading(false);
-      setRefreshing(false);
     },
     [user, setError],
   );
@@ -2392,7 +2389,6 @@ export default function ProjectsPage() {
             <span>Expires {new Date(deviceAuthorization.expires_at).toLocaleTimeString()}</span>
           </div>
         )}
-        {refreshing && <span className="projects-refreshing">Refreshing…</span>}
         {loading ? (
           <div role="status" aria-label="Loading projects">
             <ProjectsContentSkeleton />

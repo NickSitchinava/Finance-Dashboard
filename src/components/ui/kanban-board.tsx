@@ -231,12 +231,14 @@ export const KanbanBoard = React.forwardRef<HTMLDivElement, KanbanBoardProps>(
 
     /* ------------------------------------------------------ pointer drag */
 
-    const endDrag = React.useCallback(() => {
+    const endDrag = React.useCallback((cancelled = false) => {
       const d = dragRef.current;
       const s = slotRef.current;
-      if (d && movedRef.current && edgeRef.current && onTransfer) onTransfer(d.taskId);
-      else if (d && movedRef.current && s) move(d.taskId, s);
-      else if (d) onCardClick?.(d.taskId, modifierRef.current as React.MouseEvent);
+      if (!cancelled) {
+        if (d && movedRef.current && edgeRef.current && onTransfer) onTransfer(d.taskId);
+        else if (d && movedRef.current && s) move(d.taskId, s);
+        else if (d) onCardClick?.(d.taskId, modifierRef.current as React.MouseEvent);
+      }
       dragRef.current = null;
       slotRef.current = null;
       autoScroll.current = 0;
@@ -255,7 +257,7 @@ export const KanbanBoard = React.forwardRef<HTMLDivElement, KanbanBoardProps>(
       const onMove = (e: PointerEvent) => {
         const d = dragRef.current;
         if (!d) return;
-        if (e.cancelable) e.preventDefault();
+        if (e.pointerType !== "touch" && e.cancelable) e.preventDefault();
         if (Math.abs(e.clientX - pointerRef.current.x) + Math.abs(e.clientY - pointerRef.current.y) > 5) movedRef.current = true;
         const panelRect = document.querySelector<HTMLElement>(".crm-shared")?.getBoundingClientRect();
         const overPanel = !!panelRect && e.clientX >= panelRect.left && e.clientX <= panelRect.right && e.clientY >= panelRect.top && e.clientY <= panelRect.bottom;
@@ -284,10 +286,11 @@ export const KanbanBoard = React.forwardRef<HTMLDivElement, KanbanBoardProps>(
       };
 
       const onUp = () => endDrag();
+      const onCancel = () => endDrag(true);
 
       window.addEventListener("pointermove", onMove);
       window.addEventListener("pointerup", onUp);
-      window.addEventListener("pointercancel", onUp);
+      window.addEventListener("pointercancel", onCancel);
 
       const tick = () => {
         if (autoScroll.current && trackRef.current) {
@@ -301,14 +304,14 @@ export const KanbanBoard = React.forwardRef<HTMLDivElement, KanbanBoardProps>(
         document.body.classList.remove("crm-card-dragging");
         window.removeEventListener("pointermove", onMove);
         window.removeEventListener("pointerup", onUp);
-        window.removeEventListener("pointercancel", onUp);
+        window.removeEventListener("pointercancel", onCancel);
         if (rafRef.current) cancelAnimationFrame(rafRef.current);
       };
     }, [drag, endDrag, slotAt, x, y, onEdgeChange]);
 
     const startDrag = (e: React.PointerEvent, task: KanbanTask, colId: string, index: number) => {
       if (e.button !== 0) return;
-      e.preventDefault();
+      if (e.pointerType !== "touch") e.preventDefault();
       const el = e.currentTarget as HTMLElement;
       const r = el.getBoundingClientRect();
       const state: DragState = {

@@ -127,7 +127,7 @@ body:has(.crm-page) .crm-page { width:100%; }
 .crm-kanban__column-title span { min-width:20px; height:20px; display:grid; place-items:center; padding:0 5px; border:1px solid #e2deed; border-radius:6px; background:#fff; color:#6d648c; font-size:10px; font-weight:750; }
 .crm-kanban__column-head p { margin:5px 0 0; color:#817c91; font-size:11px; line-height:1.35; }
 .crm-kanban__list { display:flex; flex-direction:column; gap:8px; }
-.crm-kanban__card { touch-action:none; cursor:grab; outline:none; user-select:none; -webkit-user-select:none; }
+.crm-kanban__card { touch-action:pan-y; cursor:grab; outline:none; user-select:none; -webkit-user-select:none; }
 .crm-kanban__card * { user-select:none; -webkit-user-select:none; }
 body.crm-card-dragging,body.crm-card-dragging * { user-select:none!important; -webkit-user-select:none!important; }
 .crm-kanban__card:active,.crm-kanban__card.is-grabbed { cursor:grabbing; }

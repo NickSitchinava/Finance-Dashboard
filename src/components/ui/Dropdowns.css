@@ -1,0 +1,162 @@
+/* One visual system for native selects. The browser keeps form, keyboard, and
+   touch behavior; supporting browsers also render the picker in the top layer. */
+:root {
+  --dropdown-ink: #211b3b;
+  --dropdown-muted: #736e83;
+  --dropdown-line: #dcd7e9;
+  --dropdown-focus: #7664cc;
+  --dropdown-hover: #f7f7ff;
+  --dropdown-selected: #eeebfa;
+}
+
+select:not([multiple]) {
+  min-width: 0;
+  max-width: 100%;
+  min-height: 34px;
+  border-radius: 9px;
+  color-scheme: light;
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+select:not([multiple]):hover:not(:disabled) {
+  border-color: #b9afe2;
+}
+
+select:not([multiple]):focus-visible {
+  outline: 2px solid var(--dropdown-focus);
+  outline-offset: 2px;
+}
+
+select:not([multiple]):disabled {
+  cursor: not-allowed;
+  opacity: .58;
+}
+
+@supports not (appearance: base-select) {
+  body select:not([multiple]) {
+    background-image: url("data:image/svg+xml,%3Csvg%20xmlns=%27http://www.w3.org/2000/svg%27%20width=%2716%27%20height=%2716%27%20viewBox=%270%200%2016%2016%27%20fill=%27none%27%3E%3Cpath%20d=%27m3.5%206%204.5%204%204.5-4%27%20stroke=%27%23736e83%27%20stroke-width=%272%27%20stroke-linecap=%27round%27%20stroke-linejoin=%27round%27/%3E%3C/svg%3E") !important;
+    background-position: right 10px center;
+    background-size: 16px 16px;
+    background-repeat: no-repeat;
+    padding-inline-end: 30px;
+    appearance: none;
+  }
+}
+
+@supports (appearance: base-select) {
+  select:not([multiple]),
+  select:not([multiple])::picker(select) {
+    appearance: base-select;
+  }
+
+  body select:not([multiple]) {
+    height: auto;
+  }
+
+  select:not([multiple]) {
+    align-items: center;
+    padding-inline-end: 10px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.35;
+    cursor: pointer;
+  }
+
+  select:not([multiple])::picker-icon {
+    content: "";
+    display: block;
+    flex: none;
+    align-self: center;
+    inline-size: 16px;
+    block-size: 16px;
+    margin-inline-start: auto;
+    background-color: var(--dropdown-muted);
+    mask: url("data:image/svg+xml,%3Csvg%20xmlns=%27http://www.w3.org/2000/svg%27%20width=%2716%27%20height=%2716%27%20viewBox=%270%200%2016%2016%27%20fill=%27none%27%3E%3Cpath%20d=%27m3.5%206%204.5%204%204.5-4%27%20stroke=%27black%27%20stroke-width=%272%27%20stroke-linecap=%27round%27%20stroke-linejoin=%27round%27/%3E%3C/svg%3E") center / contain no-repeat;
+    transform-origin: center;
+    transition: transform 140ms ease;
+  }
+
+  select:not([multiple]):open::picker-icon {
+    transform: rotate(180deg);
+    background-color: #4935a5;
+  }
+
+  select:not([multiple])::picker(select) {
+    box-sizing: border-box;
+    min-inline-size: anchor-size(width);
+    inline-size: max-content;
+    max-inline-size: min(420px, calc(100vw - 24px));
+    max-block-size: min(320px, calc(100dvh - 24px));
+    margin-block: 5px;
+    padding: 5px;
+    overflow: auto;
+    overscroll-behavior: contain;
+    border: 1px solid var(--dropdown-line);
+    border-radius: 10px;
+    background: #fff;
+    color: var(--dropdown-ink);
+    box-shadow: 0 12px 28px #150c4a20, 0 2px 6px #150c4a0a;
+    scrollbar-color: #c9c0e9 transparent;
+    scrollbar-width: thin;
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 140ms ease, transform 140ms ease,
+      display 140ms allow-discrete, overlay 140ms allow-discrete;
+  }
+
+  @starting-style {
+    select:not([multiple])::picker(select) {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+  }
+
+  select:not([multiple]) option {
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-block-size: 36px;
+    padding: 8px 10px;
+    border-radius: 7px;
+    background: #fff;
+    color: var(--dropdown-ink);
+    font: inherit;
+    line-height: 1.35;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    cursor: pointer;
+  }
+
+  select:not([multiple]) option:hover,
+  select:not([multiple]) option:focus-visible {
+    background: var(--dropdown-hover);
+  }
+
+  select:not([multiple]) option:checked {
+    background: var(--dropdown-selected);
+    color: #27187e;
+    font-weight: 700;
+  }
+
+  select:not([multiple]) option::checkmark {
+    order: 2;
+    flex: none;
+    margin-inline-start: auto;
+    color: #4935a5;
+  }
+
+  select:not([multiple]) option:disabled {
+    color: var(--dropdown-muted);
+    opacity: .55;
+    cursor: not-allowed;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  select:not([multiple]),
+  select:not([multiple])::picker-icon,
+  select:not([multiple])::picker(select) {
+    transition: none;
+  }
+}

@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./index.css";
+import "./components/ui/Dropdowns.css";
 import "./components/ui/DashboardMetricCard.css";
 import "./pages/TableListPolish.css";
 import { mountTableListInteractions } from "./pages/tableListInteractions";

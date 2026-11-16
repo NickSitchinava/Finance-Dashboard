@@ -104,13 +104,13 @@ export default function ClientSelect({
           <option value="" disabled>No clients yet</option>
         ) : (
           clients.map((c) => (
-            <option key={c.id} value={c.id} style={{ color: "var(--text-primary)" }}>
+            <option key={c.id} value={c.id}>
               {c.name}
             </option>
           ))
         )}
 
-        <option value={NEW_CLIENT_VALUE} style={{ color: "var(--accent)" }}>
+        <option value={NEW_CLIENT_VALUE} style={{ color: "#4935a5" }}>
           + Add New Client
         </option>
       </select>

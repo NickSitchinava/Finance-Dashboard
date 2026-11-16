@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence } from "motion/react";
 import { Link } from "react-router-dom";
@@ -27,6 +27,8 @@ type WidgetId = "finance" | "attention" | "projects" | "briefing" | "recent";
 type Widget = { id: WidgetId; visible: boolean };
 type Data = { projects: Project[]; transactions: Transaction[]; invoices: Invoice[]; goals: Goal[] };
 type Metric = "revenue" | "expenses" | "net";
+const FINANCIAL_METRIC_ITEMS = [{ value: "revenue", label: "Revenue" }, { value: "expenses", label: "Expenses" }, { value: "net", label: "Net profit" }];
+const FinancialMetricTabs = memo(RubberSegment);
 type Period = "30d" | "3m" | "6m" | "12m";
 type KpiPeriod = Period | "custom";
 type Resource<T> = { data: T | null; status: "loading" | "refreshing" | "ready" | "error"; error: string | null };
@@ -231,11 +233,15 @@ function OverviewDashboard({ userId }: { userId: string }) {
   const [shownMetric, setShownMetric] = useState<Metric>("revenue");
   const [chartFading, setChartFading] = useState(false);
   const transitionRef = useRef<number | null>(null);
+  const chartFrameRef = useRef<number | null>(null);
   const headerSlot = document.getElementById("overview-header-actions");
   const today = dateKey();
   const dirty = editing && JSON.stringify(draft) !== JSON.stringify(saved);
 
-  useEffect(() => () => { if (transitionRef.current !== null) clearTimeout(transitionRef.current); }, []);
+  useEffect(() => () => {
+    if (transitionRef.current !== null) clearTimeout(transitionRef.current);
+    if (chartFrameRef.current !== null) cancelAnimationFrame(chartFrameRef.current);
+  }, []);
   useEffect(() => {
     if (!dirty) return;
     const beforeUnload = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
@@ -303,16 +309,18 @@ function OverviewDashboard({ userId }: { userId: string }) {
     return { covered: Boolean(financial.fetchedFrom && financial.fetchedFrom <= bounds.from), hasRecords: rows.length > 0, unresolved: rows.reduce((sum, day) => sum + day.unresolved, 0), totalCents };
   }, [financial.days, financial.fetchedFrom, kpiBounds.from, kpiBounds.to, kpiRangeValid, shownMetric]);
 
-  function selectChart(next: Metric) {
+  const selectChart = useCallback((next: Metric) => {
     setSelectedMetric(next);
     if (transitionRef.current !== null) clearTimeout(transitionRef.current);
+    if (chartFrameRef.current !== null) cancelAnimationFrame(chartFrameRef.current);
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setShownMetric(next); setChartFading(false); return; }
     setChartFading(true);
     transitionRef.current = window.setTimeout(() => {
       setShownMetric(next);
-      window.requestAnimationFrame(() => setChartFading(false));
+      chartFrameRef.current = window.requestAnimationFrame(() => { chartFrameRef.current = null; setChartFading(false); });
     }, 140);
-  }
+  }, []);
+  const handleMetricChange = useCallback((value: string) => selectChart(value as Metric), [selectChart]);
   function move(index: number, delta: number) {
     const next = [...draft]; const target = index + delta;
     if (target < 0 || target >= next.length) return;
@@ -361,15 +369,15 @@ function OverviewDashboard({ userId }: { userId: string }) {
               {widget.visible && state === "ready" && <div className="overview__revealed">{groups[widget.id].some(source => resources[source].status === "refreshing") && <span className="overview__refreshing">Refreshing…</span>}{groups[widget.id].some(source => resources[source].error) && <div className="overview__refresh-error">Latest refresh failed. <button type="button" onClick={() => retryGroup(widget.id)}>Retry</button></div>}
               {widget.id === "finance" && <>
                 <div className="overview__panel-head overview__finance-head"><div><h2>Financial Performance</h2></div></div>
-                <RubberSegment className="overview__rubber-metrics" trackColor="#f5f3fa" thumbColor="#fff" textColor="#35265e" activeTextColor="#27187e" aria-label="Financial metric" items={[{ value: "revenue", label: "Revenue" }, { value: "expenses", label: "Expenses" }, { value: "net", label: "Net profit" }]} value={selectedMetric} onChange={value => selectChart(value as Metric)} size="md" />
+                <FinancialMetricTabs className="overview__rubber-metrics" trackColor="#f5f3fa" thumbColor="#fff" textColor="#35265e" activeTextColor="#27187e" aria-label="Financial metric" items={FINANCIAL_METRIC_ITEMS} value={selectedMetric} onChange={handleMetricChange} size="md" />
                 <div className={`overview__chart-content${chartFading ? " is-fading" : ""}`}>
-                  <div className="overview__chart-summary"><strong>{kpiReady ? <AnimatedMetricValue value={money(chartTotalCents, displayCurrency)}/> : '—'}</strong><span>{kpiReady ? !previousPeriod.covered ? "Previous period outside loaded history" : previousPeriod.unresolved ? "Resolve prior-period currencies to compare" : previousPeriod.hasRecords ? `${chartTotalCents - previousPeriod.totalCents >= 0 ? "+" : "−"}${money(Math.abs(chartTotalCents - previousPeriod.totalCents), displayCurrency)} vs previous period` : "No prior-period comparison" : !kpiRangeValid ? "Choose a valid date range" : !kpiCovered ? financeResource.error ? "Date range unavailable" : "Loading selected date range" : "Resolve transaction currencies in Finances"}</span></div>
+                  <div className="overview__chart-summary"><strong>{kpiReady ? <AnimatedMetricValue value={money(chartTotalCents, displayCurrency)}/> : '—'}</strong><span>{kpiReady ? !previousPeriod.covered ? "Previous period outside loaded history" : previousPeriod.unresolved ? "Resolve prior-period currencies to compare" : previousPeriod.hasRecords ? `${chartTotalCents - previousPeriod.totalCents >= 0 ? "+" : "−"}${money(Math.abs(chartTotalCents - previousPeriod.totalCents), displayCurrency)} vs previous period` : null : !kpiRangeValid ? "Choose a valid date range" : !kpiCovered ? financeResource.error ? "Date range unavailable" : "Loading selected date range" : "Resolve transaction currencies in Finances"}</span></div>
                   {hasChart ?
                     <div className="overview__chart" role="img" aria-label={`${shownMetric === "net" ? "Net profit" : shownMetric} over ${kpiPeriodLabel}: ${money(chartTotalCents, displayCurrency)}`}>
                       <ResponsiveContainer width="100%" height="100%"><AreaChart data={chart} margin={{ top: 8, right: 12, left: -18, bottom: 0 }}><defs><linearGradient id="overviewArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#6248b4" stopOpacity={0.24}/><stop offset="100%" stopColor="#6248b4" stopOpacity={0}/></linearGradient></defs><CartesianGrid vertical={false} stroke="#e7e3f0" strokeDasharray="3 5"/><XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "#7e7891", fontSize: 11 }} dy={8}/><YAxis axisLine={false} tickLine={false} tick={{ fill: "#7e7891", fontSize: 11 }} tickFormatter={value => compactMoney(Number(value), displayCurrency)}/><Tooltip formatter={value => displayMoney(Number(value))} contentStyle={{ border: "1px solid #ded8ee", borderRadius: 10, boxShadow: "0 12px 32px #21145218", fontSize: 12 }}/><Area type="monotone" dataKey={shownMetric} stroke="#4935a5" strokeWidth={2.5} fill="url(#overviewArea)" activeDot={{ r: 5, fill: "#27187e" }} isAnimationActive="auto" animationBegin={0} animationDuration={650} animationEasing="ease-in-out"/></AreaChart></ResponsiveContainer>
                     </div> : <div className="overview__empty-chart"><strong>{kpiReady ? "No transactions in this period" : !kpiRangeValid ? "Choose a valid date range" : !kpiCovered ? financeResource.error ? "Date range unavailable" : "Loading selected date range" : "Currencies need review"}</strong><p>{kpiReady ? "Financial trends will appear as records are added." : !kpiCovered ? "The chart will update when this range is ready." : "Assign original currencies in Finances to see reliable trends."}</p></div>}
                 </div>
-                <div className="overview__panel-foot"><span>Unpaid invoices are excluded from recorded revenue.</span><Link to="/finances">View finances <Arrow/></Link></div>
+                <div className="overview__panel-foot"><Link to="/finances">View finances <Arrow/></Link></div>
               </>}
               {widget.visible && widget.id === "attention" && <>
                 <div className="overview__panel-head"><div><h2>Needs Attention</h2><p>{overdueCount ? `${overdueCount} overdue · ` : ""}{soonCount} due within 7 days</p></div><span className="overview__count">{attention.length}</span></div>

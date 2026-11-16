@@ -68,6 +68,7 @@ interface Item {
   blur: SVGFEGaussianBlurElement | null;
   filter: string;
   blurred: boolean;
+  blurValue: string;
 }
 
 interface Engine {
@@ -195,7 +196,8 @@ const makeItem = (slot: Slot, position: number, shown: number): Item => ({
   strip: null,
   blur: null,
   filter: '',
-  blurred: false
+  blurred: false,
+  blurValue: ''
 });
 
 function Counter({
@@ -288,9 +290,13 @@ function Counter({
         el.style.width = `${((from + (to - from) * (at - low)) * shown).toFixed(2)}px`;
       }
       if (item.blur && item.strip) {
-        const radius = s.motionBlur ? clamp((Math.abs(item.vel) - 3) * 0.006, 0, 0.09) * e.em : 0;
-        if (radius > 0.25) {
-          item.blur.setAttribute('stdDeviation', `0 ${radius.toFixed(2)}`);
+        const originalRadius = s.motionBlur ? clamp((Math.abs(item.vel) - 3) * 0.006, 0, 0.09) * e.em : 0;
+        if (originalRadius > 0.25) {
+          const blurValue = `0 ${(originalRadius * 0.2).toFixed(2)}`;
+          if (item.blurValue !== blurValue) {
+            item.blur.setAttribute('stdDeviation', blurValue);
+            item.blurValue = blurValue;
+          }
           if (!item.blurred) {
             item.strip.style.filter = `url(#${item.filter})`;
             item.blurred = true;
@@ -468,7 +474,9 @@ function Counter({
       if (item.kind === 'digit') {
         item.numerals = [...el.querySelectorAll<HTMLElement>('[data-numeral]')];
         item.strip = el.querySelector<HTMLElement>('[data-strip]');
-        item.blur = el.querySelector('feGaussianBlur');
+        const blur = el.querySelector<SVGFEGaussianBlurElement>('feGaussianBlur');
+        if (item.blur !== blur) item.blurValue = '';
+        item.blur = blur;
         item.filter = el.querySelector('filter')?.id ?? '';
         if (!item.blur && item.strip) item.strip.style.filter = '';
         item.blurred = Boolean(item.blur && item.strip?.style.filter);

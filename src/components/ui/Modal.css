@@ -142,8 +142,21 @@
 }
 
 .form-group select option {
-  background: var(--bg-base);
-  color: var(--text-primary);
+  background: #fff;
+  color: #211b3b;
+}
+
+.form-group select {
+  background: #fff;
+  color: #211b3b;
+  border-color: #dcd7e9;
+  border-radius: 9px;
+}
+
+.form-group select:focus {
+  border-color: #7664cc;
+  outline: 2px solid #7664cc;
+  outline-offset: 2px;
 }
 
 @keyframes modalSlideUp {

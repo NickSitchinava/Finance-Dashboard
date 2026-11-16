@@ -10,6 +10,7 @@ interface CategoryFilterProps {
 export default function CategoryFilter({ categories, selected, onChange }: CategoryFilterProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -36,12 +37,14 @@ export default function CategoryFilter({ categories, selected, onChange }: Categ
     : `${selected.length} selected`;
 
   return (
-    <div ref={ref} className="cat-filter">
+    <div ref={ref} className="cat-filter" onKeyDown={(event) => { if (event.key === "Escape" && open) { event.stopPropagation(); setOpen(false); triggerRef.current?.focus(); } }}>
       <button
+        ref={triggerRef}
         type="button"
         className={`cat-filter__btn${selected.length > 0 ? " cat-filter__btn--active" : ""}`}
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
+        aria-haspopup="dialog"
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <line x1="8" y1="6" x2="21" y2="6" />
@@ -51,14 +54,14 @@ export default function CategoryFilter({ categories, selected, onChange }: Categ
           <line x1="3" y1="12" x2="3.01" y2="12" />
           <line x1="3" y1="18" x2="3.01" y2="18" />
         </svg>
-        {label}
+        <span className="cat-filter__label">{label}</span>
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.6 }}>
           <polyline points="6 9 12 15 18 9" />
         </svg>
       </button>
 
       {open && (
-        <div className="cat-filter__dropdown">
+        <div className="cat-filter__dropdown" role="dialog" aria-label="Filter by Industry Category">
           <div className="cat-filter__header">
             <span>Filter by Industry Category</span>
             {selected.length > 0 && (

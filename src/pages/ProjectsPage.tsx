@@ -2417,7 +2417,7 @@ export default function ProjectsPage() {
                     hoverEffect="glide"
                     indicator="pill"
                     collapse="never"
-                    intro
+                    intro={false}
                     ariaLabel="Project type"
                   />
                 </div>

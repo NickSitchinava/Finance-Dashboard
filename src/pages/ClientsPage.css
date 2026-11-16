@@ -576,3 +576,38 @@ a.client-card__contact-item:hover { color: var(--accent); }
   color: var(--text-primary);
   flex-wrap: wrap;
 }
+
+/* Searchable industry picker uses the same light dropdown surface as the CRM. */
+.cat-dropdown {
+  min-width: 0;
+  max-width: min(360px, calc(100vw - 24px));
+  max-height: min(280px, calc(100dvh - 24px));
+  padding: 5px;
+  border: 1px solid #ddd9e9;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 12px 28px #150c4a20, 0 2px 6px #150c4a0a;
+  overscroll-behavior: contain;
+  animation: dropdownFadeIn .15s cubic-bezier(.2,.8,.2,1);
+}
+.cat-dropdown__item {
+  min-width: 0;
+  min-height: 38px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  color: #211b3b;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.cat-dropdown__item:hover,.cat-dropdown__item:focus-visible {
+  background: #f7f7ff;
+}
+.cat-dropdown__item:focus-visible {
+  outline: 2px solid #7664cc;
+  outline-offset: -2px;
+}
+.cat-dropdown__empty { color: #736e83; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cat-dropdown,.cat-filter__dropdown { animation: none; }
+}

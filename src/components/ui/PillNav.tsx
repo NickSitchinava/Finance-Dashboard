@@ -68,6 +68,7 @@ interface Engine {
   blur: () => void;
   press: (event?: ReactPointerEvent) => void;
   release: () => void;
+  update: () => void;
   refresh: () => void;
 }
 
@@ -269,7 +270,9 @@ const PillNav = ({
     stretch: clamp(stretch, 0, 1)
   };
   const settingsRef = useRef(settings);
-  settingsRef.current = settings;
+  useLayoutEffect(() => {
+    settingsRef.current = settings;
+  });
 
   const palette = THEMES[theme] ?? THEMES.dark;
   const vars: Record<string, string> = { ...palette, ...(SIZES[size] ?? SIZES.md) };
@@ -302,7 +305,7 @@ const PillNav = ({
     vars['--pn-pill-ink'] = highlightTextColor;
   }
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const root = rootRef.current;
     if (!root) return undefined;
     const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
@@ -540,6 +543,11 @@ const PillNav = ({
         state.pressing = false;
         wake();
       },
+      update: () => {
+        state.sliding = true;
+        sync();
+        wake();
+      },
       refresh: () => {
         measure();
         sync();
@@ -550,8 +558,21 @@ const PillNav = ({
 
     measure();
     sync();
+    if (!intro) {
+      const target = rects[glideIndex()];
+      if (target) {
+        state.x0 = target.left;
+        state.x1 = target.left + target.width;
+        state.alpha = 1;
+      }
+      const active = rects[settingsRef.current.activeIndex];
+      if (active && settingsRef.current.indicator === 'dot') {
+        state.dotX = active.left + active.width / 2;
+        state.dotAlpha = 1;
+      }
+    }
     render();
-    wake();
+    if (intro) wake();
 
     let timer = 0;
     if (state.waiting) {
@@ -585,11 +606,11 @@ const PillNav = ({
       window.removeEventListener('pointercancel', engine.release);
       engineRef.current = null;
     };
-  }, [collapsed, items.length]);
+  }, [collapsed, items.length, intro]);
 
-  useEffect(() => {
-    engineRef.current?.refresh();
-  });
+  useLayoutEffect(() => {
+    engineRef.current?.update();
+  }, [activeIndex, collapsed]);
 
   useLayoutEffect(() => {
     const root = rootRef.current;

@@ -3,8 +3,10 @@ import { Activity, CalendarDays } from 'lucide-react';
 import { useAuth } from '../components/auth/AuthProvider';
 import { useCurrency } from '../hooks/useCurrency';
 import PillNav from '../components/ui/PillNav';
+import MobileTabSwitcher from '../components/ui/MobileTabSwitcher';
 import AnimatedList from '../components/ui/AnimatedList';
 import RubberSegment from '../components/ui/RubberSegment';
+import { useMobilePeriodPicker } from '../components/ui/MobilePeriodPicker';
 import { ChartBar } from '../components/ui/chart-bar';
 import { supabase } from '../lib/supabase';
 import DashboardContentTransition from '../components/ui/DashboardContentTransition';
@@ -19,6 +21,7 @@ import { AnalyticsCompareSelect } from './AnalyticsCompare';
 import { AnalyticsMainChart } from './AnalyticsMainChart';
 import type { AnalyticsChartPoint } from './AnalyticsMainChart';
 import './FinancesPage.css';
+import '../components/ui/MobilePeriodPicker.css';
 import './AnalyticsPage.css';
 
 type Category = 'Overview' | 'Financial' | 'Clients' | 'Projects' | 'Invoices';
@@ -110,6 +113,7 @@ export default function AnalyticsPage() {
   const [error, setError] = useState('');
   const [reload, setReload] = useState(0);
   const [mobileControls, setMobileControls] = useState(false);
+  const mobilePeriod = useMobilePeriodPicker();
   const [expanded, setExpanded] = useState(false);
   const [selected, setSelected] = useState<AnalyticsChartPoint | null>(null);
   const range = useMemo(() => analyticsBounds(preset, custom, localDay()), [preset, custom]);
@@ -207,11 +211,11 @@ export default function AnalyticsPage() {
   const mainEmpty = category === 'Clients' ? !model?.acquired.length : category === 'Projects' ? !data?.projects.some(project => inside(project.created_at, range)) : category === 'Invoices' ? !model?.paid.length : !data?.tx.some(row => inside(row.date, range));
   return <div className="analytics-page">
     <div className="analytics-toolbar">
-      <div className="analytics-toolbar-left"><PillNav className="analytics-pill-tabs" items={categories.map(label => ({ label }))} selectedIndex={categories.indexOf(category)} onItemClick={item => { setCategory(item.label as Category); setSelected(null); }} theme="light" size="md" layout="joined" surface="glass" itemStyle="plain" hoverEffect="glide" indicator="pill" collapse="never" intro={false} ariaLabel="Analytics sections" /><p className="analytics-range"><CalendarDays size={14} /> {range.from} to {range.to}{baseline && ' · compared with ' + baseline.from + ' to ' + baseline.to}</p></div>
-      <button className="analytics-mobile-controls" type="button" onClick={() => setMobileControls(true)}><CalendarDays size={16} /> Period</button>
+      <div className="analytics-toolbar-left">{mobilePeriod ? <MobileTabSwitcher value={category} options={categories} onChange={value => { setCategory(value); setSelected(null); }} /> : <PillNav className="analytics-pill-tabs" items={categories.map(label => ({ label }))} selectedIndex={categories.indexOf(category)} onItemClick={item => { setCategory(item.label as Category); setSelected(null); }} theme="light" size="md" layout="joined" surface="glass" itemStyle="plain" hoverEffect="glide" indicator="pill" collapse="never" intro={false} ariaLabel="Analytics sections" />}<p className="analytics-range"><CalendarDays size={14} /> {range.from} to {range.to}{baseline && ' · compared with ' + baseline.from + ' to ' + baseline.to}</p></div>
+      <button className="analytics-mobile-controls mobile-period-trigger" type="button" aria-haspopup="dialog" aria-expanded={mobileControls} onClick={() => setMobileControls(true)}><CalendarDays size={16} /> Period <strong>{preset}</strong></button>
       <div className="analytics-controls-wrap">
     {mobileControls && <button className="analytics-backdrop" type="button" aria-label="Close period controls" onClick={() => setMobileControls(false)} />}
-    <div className={'analytics-controls ' + (mobileControls ? 'is-open' : '')}><div className="analytics-sheet-head"><strong>Period & comparison</strong><button type="button" onClick={() => setMobileControls(false)}>Done</button></div><AnalyticsCompareSelect value={compare} onChange={setCompare} /><div className="analytics-period-controls"><RubberSegment className="analytics-rubber-periods" trackColor="#eeebfa" thumbColor="#fff" textColor="#35265e" activeTextColor="#27187e" aria-label="Date range" items={presets} value={preset} onChange={value => setPreset(value as Preset)} size="md" />{preset === 'Custom' && <div className="analytics-date-pair analytics-date-pair--period"><label>From<input type="date" value={custom.from} max={localDay()} onChange={event => setCustom(value => ({ ...value, from: event.target.value }))} /></label><label>To<input type="date" value={custom.to} max={localDay()} onChange={event => setCustom(value => ({ ...value, to: event.target.value }))} /></label></div>}</div>{compare === 'custom' && <div className="analytics-date-pair"><label>Comparison from<input type="date" value={other.from} max={localDay()} onChange={event => setOther(value => ({ ...value, from: event.target.value }))} /></label><label>Comparison to<input type="date" value={other.to} max={localDay()} onChange={event => setOther(value => ({ ...value, to: event.target.value }))} /></label></div>}</div>
+    <div className={'analytics-controls ' + (mobileControls ? 'is-open' : '')}><div className="analytics-sheet-head"><strong>Period & comparison</strong><button type="button" onClick={() => setMobileControls(false)}>Done</button></div><p className="analytics-sheet-range">{range.from} to {range.to}{baseline && ` · compared with ${baseline.from} to ${baseline.to}`}</p><AnalyticsCompareSelect value={compare} onChange={setCompare} /><div className="analytics-period-controls">{mobilePeriod ? <div className="mobile-period-sheet__options">{presets.map(option => <button type="button" key={option} className={preset === option ? 'is-active' : ''} aria-pressed={preset === option} onClick={() => setPreset(option)}>{option}</button>)}</div> : <RubberSegment className="analytics-rubber-periods" trackColor="#eeebfa" thumbColor="#fff" textColor="#35265e" activeTextColor="#27187e" aria-label="Date range" items={presets} value={preset} onChange={value => setPreset(value as Preset)} size="md" />}{preset === 'Custom' && <div className="analytics-date-pair analytics-date-pair--period"><label>From<input type="date" value={custom.from} max={localDay()} onChange={event => setCustom(value => ({ ...value, from: event.target.value }))} /></label><label>To<input type="date" value={custom.to} max={localDay()} onChange={event => setCustom(value => ({ ...value, to: event.target.value }))} /></label></div>}</div>{compare === 'custom' && <div className="analytics-date-pair"><label>Comparison from<input type="date" value={other.from} max={localDay()} onChange={event => setOther(value => ({ ...value, from: event.target.value }))} /></label><label>Comparison to<input type="date" value={other.to} max={localDay()} onChange={event => setOther(value => ({ ...value, to: event.target.value }))} /></label></div>}</div>
       </div>
     </div>
     {dateError && <div className="analytics-error" role="alert">{dateError}</div>}

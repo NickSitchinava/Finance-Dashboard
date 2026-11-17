@@ -9,8 +9,10 @@ import { useCurrency } from "../hooks/useCurrency";
 import SwipeToast from "../components/ui/SwipeToast";
 import AnimatedList from "../components/ui/AnimatedList";
 import RubberSegment from "../components/ui/RubberSegment";
+import MobilePeriodPicker, { useMobilePeriodPicker } from "../components/ui/MobilePeriodPicker";
 import DashboardMetricCard from "../components/ui/DashboardMetricCard";
 import AnimatedMetricValue from "../components/ui/AnimatedMetricValue";
+import ClientIndustryCard from "../components/ui/ClientIndustryCard";
 import { dashboardSnapshot, saveDashboardSnapshot } from "../lib/dashboardCache";
 import { chartBuckets, compactMoney, convertedCents, loadRates, money, periodBounds, previousBounds } from "../lib/finance";
 import type { Currency, FinanceTransaction, RateMap } from "../lib/finance";
@@ -31,6 +33,7 @@ const FINANCIAL_METRIC_ITEMS = [{ value: "revenue", label: "Revenue" }, { value:
 const FinancialMetricTabs = memo(RubberSegment);
 type Period = "30d" | "3m" | "6m" | "12m";
 type KpiPeriod = Period | "custom";
+type ClientIndustrySummary = { total: number; segments: { id: string; name: string; color: string; count: number }[] };
 type Resource<T> = { data: T | null; status: "loading" | "refreshing" | "ready" | "error"; error: string | null };
 type ResourceHandle<T> = Resource<T> & { retry: () => void };
 type Source = "projects" | "invoices" | "goals" | "finance" | "clients" | "projectCount" | "recent" | "preferences";
@@ -130,6 +133,7 @@ function OverviewDashboard({ userId }: { userId: string }) {
   const displayCurrency = currency as Currency;
   const displayMoney = (value: number) => value < 0 ? `−${symbol}${Math.abs(value).toLocaleString()}` : format(value);
   const [kpiPeriod, setKpiPeriod] = useState<KpiPeriod>("6m");
+  const mobilePeriod = useMobilePeriodPicker();
   const [kpiFrom, setKpiFrom] = useState(() => periodBounds("6m", "", "").from);
   const [kpiTo, setKpiTo] = useState(() => periodBounds("6m", "", "").to);
   const kpiBounds = useMemo(() => periodBounds(kpiPeriod, kpiFrom, kpiTo), [kpiPeriod, kpiFrom, kpiTo]);
@@ -162,9 +166,31 @@ function OverviewDashboard({ userId }: { userId: string }) {
     return { revenue: revenue / 100, expenses: expenses / 100, days: [...daily.values()], unresolved, rates, fetchedFrom: financeFetchFrom };
   }, [userId, displayCurrency, financeFetchFrom, financeHistoryFrom]);
   const clientsQuery = useCallback(async () => {
-    const { count, error } = await supabase.from("clients").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("active", true);
-    if (error) throw error;
-    return count ?? 0;
+    const [clients, categories] = await Promise.all([
+      allRows<{ id: string; active: boolean; relationship_stage: string }>("clients", "id,active,relationship_stage", userId),
+      allRows<{ id: string; name: string; color: string }>("client_categories", "id,name,color", userId),
+    ]);
+    const included = clients.filter(client => client.active && ["active", "completed"].includes(client.relationship_stage));
+    const assignments: { client_id: string; category_id: string }[] = [];
+    for (let start = 0; start < included.length; start += 100) {
+      const ids = included.slice(start, start + 100).map(client => client.id);
+      for (let offset = 0; ; offset += 500) {
+        const { data, error } = await supabase.from("client_category_assignments").select("client_id,category_id").in("client_id", ids).order("id").range(offset, offset + 499);
+        if (error) throw error;
+        assignments.push(...(data ?? []));
+        if (!data || data.length < 500) break;
+      }
+    }
+    const categoryById = new Map(categories.map(category => [category.id, category]));
+    const assignedByClient = new Map<string, string>();
+    for (const assignment of assignments) if (!assignedByClient.has(assignment.client_id) && categoryById.has(assignment.category_id)) assignedByClient.set(assignment.client_id, assignment.category_id);
+    const counts = new Map<string, number>();
+    for (const client of included) {
+      const categoryId = assignedByClient.get(client.id) ?? "uncategorized";
+      counts.set(categoryId, (counts.get(categoryId) ?? 0) + 1);
+    }
+    const segments = [...counts].map(([id, count]) => ({ id, name: id === "uncategorized" ? "Uncategorized" : categoryById.get(id)!.name, color: id === "uncategorized" ? "#a9a3bb" : categoryById.get(id)!.color, count })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+    return { total: included.length, segments } satisfies ClientIndustrySummary;
   }, [userId]);
   const projectCountQuery = useCallback(async () => {
     const { count, error } = await supabase.from("projects").select("id", { count: "exact", head: true }).eq("user_id", userId);
@@ -185,7 +211,7 @@ function OverviewDashboard({ userId }: { userId: string }) {
   const invoicesResource = useDashboardResource(`${userId}|overview|invoices`, invoicesQuery);
   const goalsResource = useDashboardResource(`${userId}|overview|goals`, goalsQuery);
   const financeResource = useDashboardResource(`${userId}|overview|finance|${displayCurrency}|${financeFetchFrom}`, financeQuery);
-  const clientsResource = useDashboardResource(`${userId}|overview|clients`, clientsQuery);
+  const clientsResource = useDashboardResource(`${userId}|overview|clients-industry-v3`, clientsQuery);
   const projectCountResource = useDashboardResource(`${userId}|overview|project-count`, projectCountQuery);
   const recentResource = useDashboardResource(`${userId}|overview|recent`, recentQuery);
   const preferencesResource = useDashboardResource(`${userId}|overview|preferences`, preferencesQuery);
@@ -349,14 +375,14 @@ function OverviewDashboard({ userId }: { userId: string }) {
     <div className="overview"><div className="overview__inner">
       {editing && <div className="overview__edit-banner"><div><strong>Customize dashboard</strong><span>Move widgets or choose which ones to show.</span></div><div className="overview__mobile-edit"><button onClick={cancel}>Cancel</button><button onClick={save} disabled={saving}>{saving ? "Saving…" : "Save layout"}</button></div></div>}
       {preferencesResource.status === "error" && <div className="overview__partial" role="alert"><span>Dashboard layout preferences could not be loaded.</span><button type="button" onClick={preferencesResource.retry}>Retry</button></div>}
-        <div className="overview__kpi-controls"><span>Financial period</span><div className="overview__period-controls">{kpiPeriod === "custom" && <div className="overview__kpi-custom"><label>From <input type="date" value={kpiFrom} max={kpiTo} onChange={event => setKpiFrom(event.target.value)}/></label><label>To <input type="date" value={kpiTo} min={kpiFrom} onChange={event => setKpiTo(event.target.value)}/></label></div>}<RubberSegment className="overview__rubber-periods" trackColor="#f6f4fa" thumbColor="#fff" textColor="#35265e" activeTextColor="#27187e" aria-label="Overview financial date range" items={["30d", "3m", "6m", "12m", { value: "custom", label: "Custom" }]} value={kpiPeriod} onChange={value => setKpiPeriod(value as KpiPeriod)} size="md" /></div></div>
+        <div className="overview__kpi-controls"><span>Financial period</span>{mobilePeriod ? <MobilePeriodPicker value={kpiPeriod} options={[{value:"30d",label:"30d"},{value:"3m",label:"3m"},{value:"6m",label:"6m"},{value:"12m",label:"12m"},{value:"custom",label:"Custom"}]} onChange={setKpiPeriod} custom={<><label>From<input type="date" value={kpiFrom} max={kpiTo} onChange={event => setKpiFrom(event.target.value)}/></label><label>To<input type="date" value={kpiTo} min={kpiFrom} onChange={event => setKpiTo(event.target.value)}/></label></>} /> : <div className="overview__period-controls">{kpiPeriod === "custom" && <div className="overview__kpi-custom"><label>From <input type="date" value={kpiFrom} max={kpiTo} onChange={event => setKpiFrom(event.target.value)}/></label><label>To <input type="date" value={kpiTo} min={kpiFrom} onChange={event => setKpiTo(event.target.value)}/></label></div>}<RubberSegment className="overview__rubber-periods" trackColor="#f6f4fa" thumbColor="#fff" textColor="#35265e" activeTextColor="#27187e" aria-label="Overview financial date range" items={["30d", "3m", "6m", "12m", { value: "custom", label: "Custom" }]} value={kpiPeriod} onChange={value => setKpiPeriod(value as KpiPeriod)} size="md" /></div>}</div>
         {kpiPeriod === "custom" && !kpiRangeValid && <p className="overview__kpi-range-error" role="alert">Choose a valid date range.</p>}
         {kpiRangeValid && !kpiCovered && financeResource.error && <p className="overview__kpi-range-error" role="alert">Could not load this date range. <button type="button" onClick={financeResource.retry}>Retry</button></p>}
         <section className="overview__kpis" aria-label="Business summary">
           {groupState("kpis") === "loading" ? [0, 1, 2, 3, 4].map(index => <div key={index} className={`dashboard-metric overview__kpi overview__kpi-skeleton ${index === 0 ? "overview__kpi--primary" : index === 1 ? "overview__kpi--tint" : ""}`} role="status" aria-label="Loading business summary"><SkeletonLine width="72%" height={10}/><SkeletonLine width="58%" height={27}/><SkeletonLine width="82%" height={9}/></div>) : groupState("kpis") === "error" ? <div className="overview__kpi-error" role="alert"><strong>Business summary unavailable</strong><span>One or more metrics could not be loaded.</span><button type="button" onClick={() => retryGroup("kpis")}>Retry</button></div> : <>
-            <Kpi label="Recorded Revenue" value={kpiReady ? money(kpiTotals.revenue, displayCurrency) : kpiRangeValid && !kpiCovered && !financeResource.error ? <SkeletonLine width="58%" height={27}/> : '—'} detail={kpiReady ? `${kpiPeriodLabel} · income transactions` : !kpiRangeValid ? "Choose a valid date range" : !kpiCovered ? financeResource.error ? "Date range unavailable" : "Loading date range" : "Currencies need review"} tone="overview__kpi--primary"/>
-            <Kpi label="Net profit" value={kpiReady ? money(kpiTotals.revenue - kpiTotals.expenses, displayCurrency) : kpiRangeValid && !kpiCovered && !financeResource.error ? <SkeletonLine width="58%" height={27}/> : '—'} detail={kpiReady ? `${kpiPeriodLabel} · income less expenses` : !kpiRangeValid ? "Choose a valid date range" : !kpiCovered ? financeResource.error ? "Date range unavailable" : "Loading date range" : "Currencies need review"} tone="overview__kpi--tint"/>
-            <Kpi label="Total Clients" value={clientsResource.data ?? 0} detail="Active client records"/>
+            <Kpi label="Recorded Revenue" value={kpiReady ? money(kpiTotals.revenue, displayCurrency) : kpiRangeValid && !kpiCovered && !financeResource.error ? <SkeletonLine width="58%" height={27}/> : '—'} detail={kpiReady ? `${mobilePeriod ? "" : `${kpiPeriodLabel} · `}income transactions` : !kpiRangeValid ? "Choose a valid date range" : !kpiCovered ? financeResource.error ? "Date range unavailable" : "Loading date range" : "Currencies need review"} tone="overview__kpi--primary"/>
+            <Kpi label="Net profit" value={kpiReady ? money(kpiTotals.revenue - kpiTotals.expenses, displayCurrency) : kpiRangeValid && !kpiCovered && !financeResource.error ? <SkeletonLine width="58%" height={27}/> : '—'} detail={kpiReady ? `${mobilePeriod ? "" : `${kpiPeriodLabel} · `}Income minus Expenses` : !kpiRangeValid ? "Choose a valid date range" : !kpiCovered ? financeResource.error ? "Date range unavailable" : "Loading date range" : "Currencies need review"} tone="overview__kpi--tint"/>
+            {mobilePeriod ? <ClientIndustryCard key="client-industry" summary={clientsResource.data ?? { total: 0, segments: [] }} /> : <Kpi label="Total Clients" value={clientsResource.data?.total ?? 0} detail="Active and completed clients"/>}
             <Kpi label="Total Projects" value={projectCountResource.data ?? 0} detail="All project statuses"/>
             <Kpi label="Active Projects" value={activeProjects.length} detail="Currently in motion"/>
           </>}

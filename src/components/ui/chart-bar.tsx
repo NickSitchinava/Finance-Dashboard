@@ -428,8 +428,8 @@ export function ChartBar({
         aria-label={title ? `${title} chart` : "Bar chart"}
         onKeyDown={onKeyDown}
         onBlur={() => setActive(null)}
-        className="relative w-full touch-pan-y select-none rounded-md outline-offset-4 focus-visible:outline-2"
-        style={{ height: svgH, outlineColor: theme.accent }}
+        className="relative w-full touch-pan-y select-none rounded-md"
+        style={{ height: svgH }}
       >
         {width > 0 && n > 0 && (
           <svg

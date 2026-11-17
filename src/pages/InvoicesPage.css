@@ -126,6 +126,7 @@ body:has(.invoices-page) .modal-overlay .modal-content{background:#fff;color:#21
 }
 
 .invoice-ledger-tabs{max-width:100%;overflow-x:auto;padding:2px 1px 5px;scrollbar-width:thin;scrollbar-color:#c9c0df transparent}
+@media(max-width:800px){.invoice-ledger-tabs{width:100%;max-width:100%;overflow:visible;padding:0}.invoice-ledger-tabs__mobile{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;width:100%}.invoice-ledger-tabs__mobile button{min-width:0;min-height:39px;padding:6px 3px;border:1px solid transparent;border-radius:8px;background:#f3f0fa;color:#62568b;font-size:11px;font-weight:750;white-space:nowrap}.invoice-ledger-tabs__mobile button.is-active{border-color:#c7b9ee;background:#e9e2fb;color:#27187e}}
 
 .invoice-editor-head{margin-bottom:9px}
 .invoice-editor-grid .invoice-preview-wrap{display:flex;flex-direction:column;height:calc(min(92dvh,1000px) - 120px);min-height:0}

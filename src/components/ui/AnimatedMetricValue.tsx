@@ -40,8 +40,11 @@ function FittedCounter({ displayText, ...props }: CounterProps & { displayText: 
 /** Preserve the text produced by the existing formatters while rolling its digits. */
 export default function AnimatedMetricValue({ value, fit = false }: { value: number | string; fit?: boolean }) {
   const locale = new Intl.NumberFormat().resolvedOptions().locale;
+  // Keep the rolling digits on phones while skipping the per-digit SVG blur work.
+  const mobileMotion = typeof window !== 'undefined' && window.matchMedia('(max-width: 800px)').matches;
+  const motionSettings = mobileMotion ? { duration: 0.35, stagger: 0.015, motionBlur: false } : {};
   if (typeof value === 'number') {
-    const props: CounterProps = { value, locale, format: { useGrouping: false }, fontSize: 'inherit', fontWeight: 'inherit' };
+    const props: CounterProps = { value, locale, format: { useGrouping: false }, fontSize: 'inherit', fontWeight: 'inherit', ...motionSettings };
     return fit ? <FittedCounter {...props} displayText={String(value)}/> : <Counter {...props}/>;
   }
 
@@ -56,6 +59,6 @@ export default function AnimatedMetricValue({ value, fit = false }: { value: num
   const numeric = Number(raw.replaceAll(group, '').replace(decimal, '.').replace(/[^\d.]/g, ''));
   const formatter = new Intl.NumberFormat(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
   if (!Number.isFinite(numeric) || formatter.format(numeric) !== raw) return value;
-  const props: CounterProps = { value: numeric, locale, decimals, prefix, suffix, fontSize: 'inherit', fontWeight: 'inherit' };
+  const props: CounterProps = { value: numeric, locale, decimals, prefix, suffix, fontSize: 'inherit', fontWeight: 'inherit', ...motionSettings };
   return fit ? <FittedCounter {...props} displayText={value}/> : <Counter {...props}/>;
 }

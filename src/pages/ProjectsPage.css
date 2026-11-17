@@ -1470,6 +1470,7 @@
 .projects-event-list--connected .animated-list__description,.projects-event-list--connected .animated-list__meta{font-size:10px}
 
 .projects-kind-tabs{max-width:100%;overflow-x:auto;padding:2px 1px 5px;scrollbar-width:thin;scrollbar-color:#c9c0df transparent}
+@media(max-width:800px){.projects-kind-tabs{width:auto;max-width:100%;overflow:visible;padding:0}.projects-kind-tabs .pill-nav{--pn-h:40px!important;--pn-inner:34px!important;--pn-pad:3px!important;--pn-x:14px!important}}
 
 .projects-filters > .sek { min-width: 0; }
 @media (max-width: 1150px) { .projects-filters > .sek { grid-column: span 3; } }

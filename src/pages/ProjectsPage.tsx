@@ -10,6 +10,7 @@ import { Seek } from "../components/ui/Seek";
 import "../components/ui/Seek.css";
 import GooeyNav from "../components/ui/GooeyNav";
 import PillNav from "../components/ui/PillNav";
+import { useMobilePeriodPicker } from "../components/ui/MobilePeriodPicker";
 import DashboardMetricCard from "../components/ui/DashboardMetricCard";
 import DashboardContentTransition from "../components/ui/DashboardContentTransition";
 import AnimatedMetricValue from "../components/ui/AnimatedMetricValue";
@@ -1913,6 +1914,7 @@ export default function ProjectsPage() {
     if (message) setNoticeSequence((sequence) => sequence + 1);
   }, []);
   const [kind, setKind] = useState<ProjectKind>("client");
+  const mobileProjectTabs = useMobilePeriodPicker();
   const [view, setView] = useState<"grid" | "table">(() =>
     localStorage.getItem("fdash.projects.view") === "table" ? "table" : "grid",
   );
@@ -2406,7 +2408,7 @@ export default function ProjectsPage() {
                 <div className="projects-kind-tabs">
                   <PillNav
                     className="projects-pill-tabs"
-                    items={[{ label: `Client projects ${counts.client}` }, { label: `Personal projects ${counts.personal}` }]}
+                    items={mobileProjectTabs ? [{ label: `Client ${counts.client}` }, { label: `Personal ${counts.personal}` }] : [{ label: `Client projects ${counts.client}` }, { label: `Personal projects ${counts.personal}` }]}
                     selectedIndex={kind === "client" ? 0 : 1}
                     onItemClick={(_, index) => { setKind(index === 0 ? "client" : "personal"); setSelectedId(null); }}
                     theme="light"

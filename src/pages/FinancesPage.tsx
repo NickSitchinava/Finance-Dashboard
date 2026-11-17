@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence } from 'motion/react';
 import { Link } from 'react-router-dom';
-import { ExternalLink, Pencil, Trash2 } from 'lucide-react';
+import { Download, ExternalLink, Pencil, Plus, Trash2, TrendingDown, TrendingUp, X } from 'lucide-react';
 import { Area, AreaChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../components/auth/AuthProvider';
@@ -20,6 +20,7 @@ import SwipeToast from '../components/ui/SwipeToast';
 import DashboardMetricCard from '../components/ui/DashboardMetricCard';
 import DashboardContentTransition from '../components/ui/DashboardContentTransition';
 import AnimatedMetricValue from '../components/ui/AnimatedMetricValue';
+import FinanceProfitFolder from '../components/ui/FinanceProfitFolder';
 import { dashboardSnapshot, saveDashboardSnapshot } from '../lib/dashboardCache';
 import PillNav from '../components/ui/PillNav';
 import RubberSegment from '../components/ui/RubberSegment';
@@ -171,8 +172,10 @@ function Breakdown({ title, rows, categories, currency, rates, available, onSele
   </section>;
 }
 
-function MetricCard({ label, value, detail, primary=false, tone='' }: { label: string; value: string; detail: React.ReactNode; primary?: boolean; tone?: string }) {
-  return <DashboardMetricCard className={`finance-metric ${primary?'finance-metric--primary':''} ${tone}`} label={label} value={value} detail={detail}/>;
+function MetricCard({ label, value, detail, primary=false, tone='', balance=false }: { label: string; value: string; detail: React.ReactNode; primary?: boolean; tone?: string; balance?: boolean }) {
+  if (balance) return <FinanceProfitFolder value={value} />;
+  const contributor = label === 'Revenue' || label === 'Expenses';
+  return <DashboardMetricCard className={`finance-metric ${primary?'finance-metric--primary':''} ${tone} ${contributor?'finance-metric--contributor':''}`} label={label} value={value} detail={contributor && detail === 'No prior value' ? '' : detail} icon={label === 'Revenue' ? <TrendingUp size={21} strokeWidth={2.2}/> : label === 'Expenses' ? <TrendingDown size={21} strokeWidth={2.2}/> : undefined}/>;
 }
 
 const ChartAreaIcon = () => <svg viewBox="0 0 20 20" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2 16h16M2 13l5-5 4 3 6-7"/><path d="M2 13v3h15V4l-6 7-4-3-5 5Z" fill="currentColor" fillOpacity=".16" stroke="none"/></svg>;
@@ -190,6 +193,10 @@ export default function FinancesPage() {
   const [metric,setMetric] = useState<Metric>('compare');
   const [chartKind,setChartKind] = useState<ChartKind>('area');
   const chartViewportRef=useRef<HTMLDivElement>(null);
+  const chartTouchGesture=useRef<{x:number;y:number;scrollLeft:number;moved:boolean}|null>(null);
+  const [chartLegendTarget,setChartLegendTarget]=useState<HTMLDivElement|null>(null);
+  const chartCloseRef=useRef<HTMLButtonElement>(null);
+  const chartExpandRef=useRef<HTMLButtonElement>(null);
   const [expandedChart,setExpandedChart] = useState(false);
   const [mobileFilters,setMobileFilters] = useState(false);
   const [filters,setFilters] = useState<Filters>(emptyFilters);
@@ -217,7 +224,7 @@ export default function FinancesPage() {
   const notify = (message: string) => { setNotice(message); refresh(); };
 
   useEffect(()=>{ const timer=window.setTimeout(()=>setDebouncedSearch(filters.search.trim()),250); return ()=>window.clearTimeout(timer); },[filters.search]);
-  useEffect(()=>{if(!expandedChart)return;const onKey=(event:KeyboardEvent)=>{if(event.key==='Escape')setExpandedChart(false);};window.addEventListener('keydown',onKey);return()=>window.removeEventListener('keydown',onKey);},[expandedChart]);
+  useEffect(()=>{if(!expandedChart)return;const onKey=(event:KeyboardEvent)=>{if(event.key==='Escape')setExpandedChart(false);};const previousOverflow=document.body.style.overflow;const expandButton=chartExpandRef.current;document.body.style.overflow='hidden';chartCloseRef.current?.focus();window.addEventListener('keydown',onKey);return()=>{window.removeEventListener('keydown',onKey);document.body.style.overflow=previousOverflow;expandButton?.focus();};},[expandedChart]);
 
   const userId = user?.id ?? '';
   const currentKey = userId ? `${userId}|${bounds.from}|${bounds.to}|${currency}` : '';
@@ -306,11 +313,43 @@ export default function FinancesPage() {
     }
     return bins;
   },[analytics,displayPeriod,displayBounds.from,displayBounds.to,currency,rates,known]);
-  const chartKeys=metric==='compare'?['revenue','expenses']:[metric];
   const chartTotal=metric==='revenue'?revenue.cents:net;
   const chartPrevious=metric==='revenue'?prevRevenue.cents:prevNet;
-  const chartSeries=chartKeys.map(key=>({key,label:key==='profit'?'Net profit':key==='revenue'?'Income':'Expenses',color:key==='revenue'?INCOME_COLORS[0]:key==='expenses'?EXPENSE_COLORS[0]:net<0?EXPENSE_COLORS[0]:INCOME_COLORS[0]}));
-  useEffect(()=>{const viewport=chartViewportRef.current;if(!viewport)return;if(expandedChart){viewport.scrollLeft=0;return;}if(chartData.length<=6||!window.matchMedia('(max-width: 768px)').matches)return;const firstActive=chartData.findIndex(item=>item.revenue||item.expenses);if(firstActive>=0)viewport.scrollLeft=Math.max(0,(firstActive-1)*68);},[chartData,chartKind,period,expandedChart]);
+  const chartSeries=useMemo(()=>(metric==='compare'?['revenue','expenses']:[metric]).map(key=>({key,label:key==='profit'?'Net profit':key==='revenue'?'Income':'Expenses',color:key==='revenue'?INCOME_COLORS[0]:key==='expenses'?EXPENSE_COLORS[0]:net<0?EXPENSE_COLORS[0]:INCOME_COLORS[0]})),[metric,net]);
+  const chartAxisFormat=useCallback((value:number)=>compactMoney(value,currency),[currency]);
+  const onChartPointerDownCapture=(event:React.PointerEvent<HTMLDivElement>)=>{
+    chartTouchGesture.current=mobilePeriod&&chartKind==='area'&&event.pointerType==='touch'
+      ? {x:event.clientX,y:event.clientY,scrollLeft:event.currentTarget.scrollLeft,moved:false}
+      : null;
+  };
+  const onChartPointerMoveCapture=(event:React.PointerEvent<HTMLDivElement>)=>{
+    const gesture=chartTouchGesture.current;
+    if(gesture&&Math.hypot(event.clientX-gesture.x,event.clientY-gesture.y)>8)gesture.moved=true;
+  };
+  const onChartClickCapture=(event:React.MouseEvent<HTMLDivElement>)=>{
+    const gesture=chartTouchGesture.current;
+    if(gesture&&(gesture.moved||Math.abs(event.currentTarget.scrollLeft-gesture.scrollLeft)>2)){
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    chartTouchGesture.current=null;
+  };
+  useEffect(()=>{
+    if(!mobilePeriod)return;
+    const viewport=chartViewportRef.current;
+    if(!viewport)return;
+    const plot=viewport.firstElementChild;
+    const update=()=>{
+      viewport.dataset.scrollLeft=String(viewport.scrollLeft>2);
+      viewport.dataset.scrollRight=String(viewport.scrollLeft+viewport.clientWidth<viewport.scrollWidth-2);
+    };
+    const observer=new ResizeObserver(update);
+    observer.observe(viewport);
+    if(plot)observer.observe(plot);
+    viewport.addEventListener('scroll',update,{passive:true});
+    update();
+    return()=>{observer.disconnect();viewport.removeEventListener('scroll',update);};
+  },[mobilePeriod,chartKind,chartData.length,expandedChart]);
   const projectSummary=useMemo(()=>projects.map(project=>{const rows=analytics.filter(row=>row.project_id===project.id);const inc=sumType(rows,'Income',currency,rates),exp=sumType(rows,'Expense',currency,rates);return {...project,revenue:inc.cents,expenses:exp.cents,profit:inc.cents-exp.cents,unresolved:inc.unresolved+exp.unresolved};}).filter(item=>item.revenue||item.expenses||item.unresolved).sort((a,b)=>b.revenue-a.revenue),[projects,analytics,currency,rates]);
   const legacyCount=analytics.filter(row=>!row.currency).length;
   const scheduledDraft = useMemo(()=>{
@@ -411,7 +450,7 @@ export default function FinancesPage() {
   const headerActions = document.getElementById('finances-header-actions');
   if(!user)return null;
   return <main className="finances">
-    {headerActions && createPortal(<><button type="button" className="finance-secondary" onClick={()=>setPanel('Reports')}>Export report</button><button type="button" className="finance-primary" onClick={()=>{setEdit(null);setOccurrenceId(null);setModalOpen(true);}}>＋ Add transaction</button></>,headerActions)}
+    {headerActions && createPortal(<><button type="button" className="finance-secondary" aria-label="Export report" title="Export report" onClick={()=>setPanel('Reports')}><Download className="finance-header-action-icon" size={17} aria-hidden="true"/><span>Export report</span></button><button type="button" className="finance-primary" aria-label="Add transaction" title="Add transaction" onClick={()=>{setEdit(null);setOccurrenceId(null);setModalOpen(true);}}><Plus className="finance-header-action-icon" size={18} aria-hidden="true"/><span>＋ Add transaction</span></button></>,headerActions)}
     <div className="finances__controls">{mobilePeriod ? <MobileTabSwitcher value={panel} options={['Main','Transactions','Recurring','Categories','Reports'] as Panel[]} onChange={setPanel} /> : <div className="finance-pill-tabs-wrap"><PillNav className="finance-pill-tabs" items={(['Main','Transactions','Recurring','Categories','Reports'] as Panel[]).map(label=>({label}))} selectedIndex={(['Main','Transactions','Recurring','Categories','Reports'] as Panel[]).indexOf(panel)} onItemClick={(item)=>setPanel(item.label as Panel)} theme="light" size="md" layout="joined" surface="glass" itemStyle="plain" hoverEffect="glide" indicator="pill" collapse="never" intro={false} ariaLabel="Finance sections" /></div>}{mobilePeriod ? <MobilePeriodPicker value={period} options={[{value:'30d',label:'30d'},{value:'3m',label:'3m'},{value:'6m',label:'6m'},{value:'12m',label:'12m'},{value:'custom',label:'Custom'}]} onChange={value=>{setPeriod(value);setPage(0)}} custom={<><label>From<input type="date" value={customFrom} max={customTo} onChange={event=>{setCustomFrom(event.target.value);setPage(0);}}/></label><label>To<input type="date" value={customTo} min={customFrom} onChange={event=>{setCustomTo(event.target.value);setPage(0);}}/></label></>} /> : <div className="finance-range-controls">{period==='custom'&&<div className="finance-custom-range"><label>From <input type="date" value={customFrom} max={customTo} onChange={event=>{setCustomFrom(event.target.value);setPage(0);}}/></label><label>To <input type="date" value={customTo} min={customFrom} onChange={event=>{setCustomTo(event.target.value);setPage(0);}}/></label></div>}<RubberSegment className="finance-rubber-periods" trackColor="#eeeafa" thumbColor="#fff" textColor="#35265e" activeTextColor="#27187e" aria-label="Date range" items={['30d','3m','6m','12m',{value:'custom',label:'Custom'}]} value={period} onChange={value=>{setPeriod(value as Period);setPage(0)}} size="md" /></div>}</div>
     {currentReady && currentResource.sourceKey !== currentKey && <div className="finance-updating" role="status">Showing the previous period while the selected range updates…</div>}
     {panel === 'Transactions' && ledgerResource.data && ledgerResource.sourceKey !== ledgerKey && <div className="finance-updating" role="status">Showing previous transactions while the selected filters update…</div>}
@@ -422,8 +461,9 @@ export default function FinancesPage() {
     {legacyCount>0&&<div className="finance-legacy"><div><strong>{legacyCount} transaction{legacyCount===1?'':'s'} in this period need a currency</strong><p>Older amounts were entered without currency metadata. Edit individual records to assign their original currency. If every unresolved amount used the same currency, you can assign it to all unresolved records in your account.</p></div><select aria-label="Original currency for all unresolved transactions" value={legacyCurrency} onChange={event=>setLegacyCurrency(event.target.value as Currency | '')}><option value="">Select currency</option><option>USD</option><option>EUR</option><option>GEL</option></select><button type="button" className="finance-secondary" disabled={busy||!legacyCurrency} onClick={resolveLegacy}>Assign to all</button></div>}
     <DashboardContentTransition transitionKey={panel}>
     {panel==='Main'&&<>
-      {!currentReady ? currentResource.status === 'error' ? <section className="finance-metrics"><FinanceLoadError title="Financial summary" retry={currentResource.retry}/></section> : <FinanceKpiSkeleton/> : <section className="finance-metrics finance-revealed" aria-label="Financial summary"><MetricCard label="Revenue" value={showMoney(revenue.cents)} detail={priorReady?comparisonText(revenue.cents,prevRevenue.cents):priorResource.status==='error'?<button className="finance-inline-retry" onClick={priorResource.retry}>Comparison unavailable · Retry</button>:priorResource.data?'Updating comparison…':<FinanceSkeletonLine width="104px" height={9}/>} tone="finance-metric--income"/><MetricCard label="Expenses" value={showMoney(expenses.cents)} detail={priorReady?comparisonText(expenses.cents,prevExpenses.cents):priorResource.status==='error'?<button className="finance-inline-retry" onClick={priorResource.retry}>Comparison unavailable · Retry</button>:priorResource.data?'Updating comparison…':<FinanceSkeletonLine width="104px" height={9}/>} tone="finance-metric--expense"/><MetricCard label="Net profit" value={showMoney(net)} detail={priorReady?comparisonText(net,prevNet):priorResource.status==='error'?<button className="finance-inline-retry" onClick={priorResource.retry}>Comparison unavailable · Retry</button>:priorResource.data?'Updating comparison…':<FinanceSkeletonLine width="104px" height={9}/>} tone={net<0?'finance-metric--expense':'finance-metric--income'}/></section>}
-      <section className={`finance-panel finance-chart${expandedChart?' finance-chart--expanded':''}${chartKind==='bar'?' finance-chart--bar':''}`}>
+      {!currentReady ? currentResource.status === 'error' ? <section className="finance-metrics"><FinanceLoadError title="Financial summary" retry={currentResource.retry}/></section> : <FinanceKpiSkeleton/> : <section className="finance-metrics finance-revealed" aria-label="Financial summary"><MetricCard label="Revenue" value={showMoney(revenue.cents)} detail={priorReady?comparisonText(revenue.cents,prevRevenue.cents):priorResource.status==='error'?<button className="finance-inline-retry" onClick={priorResource.retry}>Comparison unavailable · Retry</button>:priorResource.data?'Updating comparison…':<FinanceSkeletonLine width="104px" height={9}/>} tone="finance-metric--income"/><MetricCard label="Expenses" value={showMoney(expenses.cents)} detail={priorReady?comparisonText(expenses.cents,prevExpenses.cents):priorResource.status==='error'?<button className="finance-inline-retry" onClick={priorResource.retry}>Comparison unavailable · Retry</button>:priorResource.data?'Updating comparison…':<FinanceSkeletonLine width="104px" height={9}/>} tone="finance-metric--expense"/><MetricCard label="Net profit" balance={mobilePeriod} value={showMoney(net)} detail={priorReady?comparisonText(net,prevNet):priorResource.status==='error'?<button className="finance-inline-retry" onClick={priorResource.retry}>Comparison unavailable · Retry</button>:priorResource.data?'Updating comparison…':<FinanceSkeletonLine width="104px" height={9}/>} tone={net<0?'finance-metric--expense':'finance-metric--income'}/></section>}
+      <section className={`finance-panel finance-chart${expandedChart?' finance-chart--expanded':''}${chartKind==='bar'?' finance-chart--bar':''}`} role={expandedChart?'dialog':undefined} aria-modal={expandedChart?true:undefined} aria-label={expandedChart?'Expanded financial performance chart':undefined}>
+        {expandedChart&&<button ref={chartCloseRef} type="button" className="finance-chart__close" aria-label="Close expanded chart" onClick={()=>setExpandedChart(false)}><X size={18} aria-hidden="true"/></button>}
         <div className="finance-panel__head">
           <div><h2>Financial performance</h2></div>
           <div className="finance-chart__controls">
@@ -431,22 +471,23 @@ export default function FinancesPage() {
               <option value="compare">Income vs expenses</option><option value="revenue">Revenue</option><option value="profit">Net profit</option>
             </select>
             <RubberSegment className="finance-rubber-chart-types" trackColor="#eeeafa" thumbColor="#fff" textColor="#35265e" activeTextColor="#27187e" aria-label="Chart type" items={[{value:'area',label:'Area',icon:<ChartAreaIcon/>},{value:'bar',label:'Bar',icon:<ChartBarsIcon/>}]} value={chartKind} onChange={value=>setChartKind(value as ChartKind)} size="md" />
-            <button type="button" className="finance-chart__expand" onClick={()=>setExpandedChart(value=>!value)}>{expandedChart?'Close':'Expand'}</button>
+            <button ref={chartExpandRef} type="button" className="finance-chart__expand" onClick={()=>setExpandedChart(value=>!value)}>{expandedChart?'Close':'Expand'}</button>
           </div>
         </div>
         {expandedChart&&<div className="finance-chart__expanded-periods"><RubberSegment trackColor="#eeeafa" thumbColor="#fff" textColor="#35265e" activeTextColor="#27187e" aria-label="Expanded chart date range" items={['30d','3m','6m','12m',{value:'custom',label:'Custom'}]} value={period} onChange={value=>setPeriod(value as Period)} size="md" /></div>}
         {!currentReady ? currentResource.status === 'error' ? <FinanceLoadError title="Financial performance" retry={currentResource.retry}/> : <FinanceChartSkeleton bar={chartKind==='bar'}/> : <div className="finance-revealed"><div className="finance-chart__summary"><strong className={chartTotal<0?'is-negative':'is-positive'}><AnimatedMetricValue value={showMoney(chartTotal)}/></strong><span>{!priorReady ? priorResource.status==='error' ? <button className="finance-inline-retry" onClick={priorResource.retry}>Comparison unavailable · Retry</button> : priorResource.data ? 'Updating comparison…' : <FinanceSkeletonLine width="105px" height={9}/> : known&&priorKnown ? chartPrevious === 0 && chartTotal !== 0 ? null : comparison(chartTotal,chartPrevious) : 'Resolve currencies or rates to compare'}</span></div>
-        <div className="finance-chart__body">{!known?<div className="finance-empty">Resolve missing currencies or rates to view a reliable chart.</div>:chartData.length===0?<div className="finance-empty">Choose a valid date range to view the chart.</div>:<div className="finance-chart__viewport" ref={chartViewportRef}><div key={expandedChart?'expanded-plot':'inline-plot'} className="finance-chart__plot" style={{minWidth:expandedChart?'100%':Math.max(480,chartData.length*68)}}>
-          {chartKind==='bar'?<ChartBar data={chartData} index="label" series={chartSeries} showLegend currency={currency} title="Financial performance" description={`${formatDate(displayBounds.from)} to ${formatDate(displayBounds.to)}`} height={expandedChart?300:210} surface="light" bare total="none" animate duration={.85} valueFormat={value=>money(Math.round(value*100),currency)}/>:<ResponsiveContainer width="100%" height="100%"><AreaChart data={chartData} margin={{top:8,right:12,left:-18,bottom:0}}>
+        <div className="finance-chart__body">{!known?<div className="finance-empty">Resolve missing currencies or rates to view a reliable chart.</div>:chartData.length===0?<div className="finance-empty">Choose a valid date range to view the chart.</div>:<div className="finance-chart__viewport" ref={chartViewportRef} onPointerDownCapture={onChartPointerDownCapture} onPointerMoveCapture={onChartPointerMoveCapture} onClickCapture={onChartClickCapture}><div className="finance-chart__plot" style={{minWidth:mobilePeriod?`max(100%, ${chartData.length*(chartKind==='bar'?54:52)+58}px)`:expandedChart?'100%':Math.max(480,chartData.length*68)}}>
+          {chartKind==='bar'?<ChartBar data={chartData} index="label" series={chartSeries} showLegend={!mobilePeriod||Boolean(chartLegendTarget)} legendTarget={mobilePeriod?chartLegendTarget:undefined} mobileTapHold={mobilePeriod} currency={currency} title="Financial performance" description={`${formatDate(displayBounds.from)} to ${formatDate(displayBounds.to)}`} height={expandedChart?300:mobilePeriod?180:210} axisValueFormat={mobilePeriod?chartAxisFormat:undefined} surface="light" bare total="none" animate duration={.85} valueFormat={value=>money(Math.round(value*100),currency)}/>:<ResponsiveContainer width="100%" height="100%"><AreaChart data={chartData} margin={{top:8,right:12,left:-18,bottom:0}}>
             <defs>{chartSeries.map(item=><linearGradient key={item.key} id={`financeArea-${item.key}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={item.color} stopOpacity={0.24}/><stop offset="100%" stopColor={item.color} stopOpacity={0}/></linearGradient>)}</defs>
             <CartesianGrid vertical={false} stroke="#e7e3f0" strokeDasharray="3 5"/>
-            <XAxis dataKey="label" axisLine={false} tickLine={false} interval={0} tick={{fill:'#7e7891',fontSize:11}} dy={8}/>
-            <YAxis axisLine={false} tickLine={false} tick={{fill:'#7e7891',fontSize:11}} tickFormatter={value=>compactMoney(Number(value),currency)}/>
-            <Tooltip formatter={(value,name)=>[money(Math.round(Number(value)*100),currency),chartSeries.find(item=>item.key===name)?.label??String(name)]} contentStyle={{border:'1px solid #ded8ee',borderRadius:10,boxShadow:'0 12px 32px #21145218',fontSize:12}}/>
-            {chartSeries.length>1&&<Legend formatter={key=>chartSeries.find(item=>item.key===key)?.label??key}/>}
+            <XAxis dataKey="label" axisLine={false} tickLine={false} interval={mobilePeriod?'preserveStartEnd':0} minTickGap={mobilePeriod?18:undefined} tick={{fill:'#7e7891',fontSize:11}} dy={8}/>
+            <YAxis axisLine={false} tickLine={false} tick={{fill:'#7e7891',fontSize:11}} tickCount={mobilePeriod?4:undefined} width={mobilePeriod?48:undefined} tickFormatter={value=>compactMoney(Number(value),currency)}/>
+            <Tooltip trigger={mobilePeriod?'click':'hover'} formatter={(value,name)=>[money(Math.round(Number(value)*100),currency),chartSeries.find(item=>item.key===name)?.label??String(name)]} contentStyle={{border:'1px solid #ded8ee',borderRadius:10,boxShadow:'0 12px 32px #21145218',fontSize:12}}/>
+            {chartSeries.length>1&&!mobilePeriod&&<Legend formatter={key=>chartSeries.find(item=>item.key===key)?.label??key}/>}
             {chartSeries.map(item=><Area key={item.key} type="monotone" dataKey={item.key} stroke={item.color} strokeWidth={2.5} fill={`url(#financeArea-${item.key})`} activeDot={{r:5,fill:item.color}} isAnimationActive animationBegin={0} animationDuration={850} animationEasing="ease-in-out"/>)}</AreaChart></ResponsiveContainer>}
         </div></div>}</div>
-        {chartData.length>6&&<p className="finance-chart__caption finance-chart__scroll-hint">Swipe to see every month.</p>}</div>}
+        {mobilePeriod&&known&&chartData.length>0&&<div className="finance-chart__stationary-legend" ref={setChartLegendTarget}>{chartKind==='area'&&chartSeries.length>1&&chartSeries.map(item=><span key={item.key} className="finance-chart__legend-item"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M1 7h12" stroke={item.color} strokeWidth="2"/></svg>{item.label}</span>)}</div>}
+        {chartData.length>6&&!mobilePeriod&&<p className="finance-chart__caption finance-chart__scroll-hint">Swipe to see every month.</p>}</div>}
       </section>
       <div className="finance-breakdowns">{!currentReady ? currentResource.status==='error' ? <><section className="finance-panel"><FinanceLoadError title="Income breakdown" retry={currentResource.retry}/></section><section className="finance-panel"><FinanceLoadError title="Expense breakdown" retry={currentResource.retry}/></section></> : <><FinanceBreakdownSkeleton title="Income breakdown" income/><FinanceBreakdownSkeleton title="Expense breakdown" income={false}/></> : <><Breakdown title="Income breakdown" rows={analytics.filter(row=>row.type==='Income')} categories={categories} currency={currency} rates={rates} available={known} onSelect={category=>{updateFilters({category});setPanel('Transactions');}}/><Breakdown title="Expense breakdown" rows={analytics.filter(row=>row.type==='Expense')} categories={categories} currency={currency} rates={rates} available={known} onSelect={category=>{updateFilters({category});setPanel('Transactions');}}/></>}</div>
       {!currentReady||!metaReady ? currentResource.status==='error'||metaResource.status==='error' ? <section className="finance-panel"><FinanceLoadError title="Project profitability" retry={currentResource.status==='error'?currentResource.retry:metaResource.retry}/></section> : <FinanceProjectSkeleton/> : <section className="finance-panel finance-revealed"><div className="finance-panel__head"><div><h2>Project profitability</h2><p>Recorded project income and costs</p></div><Link to="/projects">View projects →</Link></div>{projectSummary.length?<div className="finance-project-list">{projectSummary.slice(0,5).map(item=><div key={item.id}><strong>{item.name}</strong><span>{item.unresolved?'—':money(item.revenue,currency)} revenue</span><span>{item.unresolved?'—':money(item.expenses,currency)} costs</span><b>{item.unresolved?'Currency needed':money(item.profit,currency)}</b><small>{item.unresolved?'':item.revenue?`${Math.round(item.profit/item.revenue*100)}% margin`:'Margin unavailable'}</small></div>)}</div>:<div className="finance-empty">Link transactions to a project to see profitability.</div>}</section>}

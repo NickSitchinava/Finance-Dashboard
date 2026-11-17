@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   animate as animateValue,
   motion,
@@ -60,6 +61,12 @@ export interface ChartBarProps extends ChartBaseProps {
   showLegend?: boolean;
   /** Plot height in px, excluding the bottom axis. Default: 220 */
   height?: number;
+  /** Optional value-axis formatter; tooltip formatting continues to use valueFormat. */
+  axisValueFormat?: (value: number) => string;
+  /** Keep the interactive legend outside a horizontally scrolling plot. */
+  legendTarget?: HTMLElement | null;
+  /** Mobile touch: tap pins a tooltip; a press shows it until release. */
+  mobileTapHold?: boolean;
   /** Headline figure from the first series. Default: "sum" */
   total?: "sum" | "last" | "none";
   /** Change pill next to the headline, in percent. "auto" compares the first and last value of the first series. Default: "auto" */
@@ -96,6 +103,9 @@ export function ChartBar({
   showTooltip = true,
   showLegend,
   height = 220,
+  axisValueFormat,
+  legendTarget,
+  mobileTapHold = false,
   total = "sum",
   delta = "auto",
   title,
@@ -123,6 +133,8 @@ export function ChartBar({
   const width = useWidth(ref);
   const [hidden, setHidden] = useState<Set<string>>(() => new Set());
   const [active, setActive] = useState<number | null>(null);
+  const touchGesture = useRef<{ index: number; x: number; y: number; started: number; moved: boolean } | null>(null);
+  const pinnedIndex = useRef<number | null>(null);
   const [settled, setSettled] = useState(false);
 
   const fmt = useMemo(
@@ -130,8 +142,8 @@ export function ChartBar({
     [valueFormat, currency, decimals],
   );
   const axisFmt = useMemo(
-    () => axisFormatter(valueFormat, currency, decimals),
-    [valueFormat, currency, decimals],
+    () => axisValueFormat ?? axisFormatter(valueFormat, currency, decimals),
+    [axisValueFormat, valueFormat, currency, decimals],
   );
 
   const horizontal = layout === "horizontal";
@@ -305,6 +317,37 @@ export function ChartBar({
     setActive(move);
   };
 
+  const onPlotPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!mobileTapHold || e.pointerType !== "touch") return;
+    const x = e.clientX - e.currentTarget.getBoundingClientRect().left;
+    if (x < padL || x > width - padR) return;
+    const index = Math.min(n - 1, Math.max(0, Math.floor((x - bandOrigin) / step)));
+    touchGesture.current = { index, x: e.clientX, y: e.clientY, started: e.timeStamp, moved: false };
+    setActive(index);
+  };
+  const onPlotPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const gesture = touchGesture.current;
+    if (!gesture || gesture.moved) return;
+    if (Math.hypot(e.clientX - gesture.x, e.clientY - gesture.y) > 8) {
+      gesture.moved = true;
+      setActive(pinnedIndex.current);
+    }
+  };
+  const onPlotPointerEnd = (e: React.PointerEvent<HTMLDivElement>) => {
+    const gesture = touchGesture.current;
+    if (!gesture) return;
+    touchGesture.current = null;
+    if (e.type === "pointercancel" || gesture.moved) {
+      setActive(pinnedIndex.current);
+    } else if (e.timeStamp - gesture.started < 350) {
+      pinnedIndex.current = gesture.index;
+      setActive(gesture.index);
+    } else {
+      pinnedIndex.current = null;
+      setActive(null);
+    }
+  };
+
   const growth = (b: Bar) =>
     still
       ? { duration: 0 }
@@ -427,7 +470,12 @@ export function ChartBar({
         role="group"
         aria-label={title ? `${title} chart` : "Bar chart"}
         onKeyDown={onKeyDown}
-        onBlur={() => setActive(null)}
+        onBlur={() => { pinnedIndex.current = null; setActive(null); }}
+        onPointerDown={onPlotPointerDown}
+        onPointerMove={onPlotPointerMove}
+        onPointerUp={onPlotPointerEnd}
+        onPointerCancel={onPlotPointerEnd}
+        onContextMenu={e => { if (mobileTapHold) e.preventDefault(); }}
         className="relative w-full touch-pan-y select-none rounded-md"
         style={{ height: svgH }}
       >
@@ -436,7 +484,7 @@ export function ChartBar({
             width={width}
             height={svgH}
             className="block overflow-visible"
-            onPointerLeave={() => setActive(null)}
+            onPointerLeave={e => { if (!mobileTapHold || e.pointerType !== "touch") setActive(null); }}
           >
             <defs>
               {resolved.map((s) => (
@@ -683,7 +731,7 @@ export function ChartBar({
                 <rect
                   key={i}
                   fill="transparent"
-                  onPointerEnter={() => setActive(i)}
+                  onPointerEnter={e => { if (!mobileTapHold || e.pointerType !== "touch") setActive(i); }}
                   {...(horizontal
                     ? {
                         x: padL,
@@ -722,7 +770,16 @@ export function ChartBar({
         />
       </div>
 
-      {legend && (
+      {legend && (legendTarget ? createPortal(
+        <ChartLegend
+          series={resolved}
+          theme={theme}
+          hidden={hidden}
+          onToggle={toggle}
+          patternPrefix={`${uid}-p`}
+        />,
+        legendTarget,
+      ) : (
         <div className="mt-4">
           <ChartLegend
             series={resolved}
@@ -732,7 +789,7 @@ export function ChartBar({
             patternPrefix={`${uid}-p`}
           />
         </div>
-      )}
+      ))}
     </ChartCard>
   );
 }

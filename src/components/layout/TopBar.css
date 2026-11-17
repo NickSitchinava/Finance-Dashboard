@@ -320,6 +320,7 @@
 .topbar__goals-actions { display: flex; align-items: center; margin-right: 3px; }
 .topbar__goals-actions button:focus-visible { outline: 3px solid #7664cc; outline-offset: 2px; }
 .topbar__finance-actions { display: flex; align-items: center; gap: 7px; margin-right: 3px; }
+.topbar__finance-actions .finance-header-action-icon { display: none; }
 .topbar__finance-actions button:focus-visible { outline: 3px solid #7664cc; outline-offset: 2px; }
 .topbar__projects-actions { display: flex; align-items: center; gap: 7px; margin-right: 3px; }
 .topbar__projects-actions button:focus-visible { outline: 3px solid #7664cc; outline-offset: 2px; }
@@ -364,3 +365,14 @@
 
 .topbar__burger:focus-visible { outline: 2px solid #7664cc; outline-offset: 3px; }
 @media (max-width: 768px) { .topbar__burger { width: 44px; height: 44px; } }
+@media (max-width: 700px) {
+  .topbar.topbar--finances { display: flex; align-items: center; justify-content: space-between; height: var(--topbar-height); padding-bottom: 0; }
+  .topbar--finances .topbar__left { min-width: 0; flex: 1; }
+  .topbar--finances .topbar__titles { min-width: 0; }
+  .topbar--finances .topbar__title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .topbar--finances .topbar__right { display: flex; flex: none; align-items: center; gap: 5px; }
+  .topbar--finances .topbar__finance-actions { display: flex; gap: 5px; margin: 0; }
+  .topbar--finances .topbar__finance-actions button { display: inline-flex; align-items: center; justify-content: center; width: 36px; min-width: 36px; height: 36px; min-height: 36px; padding: 0; }
+  .topbar--finances .topbar__finance-actions button span { display: none; }
+  .topbar--finances .topbar__finance-actions .finance-header-action-icon { display: block; }
+}

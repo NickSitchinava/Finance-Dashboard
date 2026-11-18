@@ -76,11 +76,15 @@ export default function ClientsWorkspaceSkeleton({ view = "kanban", tab = "clien
       <div className="crm-skeleton__controls">
         <div className="crm-skeleton__search"><Search size={15} /><Bar width="61%" height={9} /></div>
         <div className="crm-skeleton__filter"><span className="crm-skeleton__filter-icon" /><Bar width="83px" height={9} /><span className="crm-skeleton__chevron" /></div>
-        <div className="crm-skeleton__check"><span /><Bar width="87px" height={9} /></div>
-        <div className="crm-skeleton__check"><span /><Bar width="88px" height={9} /></div>
         <div className="crm-skeleton__view"><span /><span /></div>
+        <div className="crm-skeleton__check"><span /><Bar width="88px" height={9} /></div>
       </div>
-      <div className="crm-skeleton__utility"><div><Bar width="44px" height={9} /><Bar width="43px" height={9} /><Bar width="48px" height={9} /></div><Bar width="100px" height={9} /></div>
+      <div className="crm-skeleton__utility">
+        {["Undo", "Redo", "Discard", "Shared Panel"].map((label) => <div className="crm-skeleton__utility-action" key={label}>
+          <Bar width="15px" height={15} className="crm-skeleton__utility-icon" />
+          <Bar width={label === "Shared Panel" ? "58px" : `${Math.max(30, label.length * 7)}px`} height={9} />
+        </div>)}
+      </div>
       {view === "kanban" ? <Board tab={tab} /> : <ListSkeleton />}
     </div>
   </div>;

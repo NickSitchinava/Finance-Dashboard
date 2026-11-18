@@ -39,3 +39,41 @@
 @media(max-width:600px){.goals-workspace__head{flex-wrap:wrap}.goals-rubber-views{margin-top:8px}}
 
 @media (max-width: 560px) { .goals-tools > .sek { grid-column: span 2; } }
+
+@media (max-width: 768px) {
+  .goals-workspace__head {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+  .goals-workspace__head > div:first-child { display: flex; flex-direction: column; align-items: center; }
+  .goals-tabs { justify-content: center; }
+  .goals-rubber-views { align-self: center; }
+  .goals-tools { margin-top: 12px; }
+}
+
+@media (max-width: 560px) {
+  .goals-analytics > .goals-panel:first-child { position: relative; }
+  .goals-analytics > .goals-panel:first-child .goals-chart-select {
+    position: absolute;
+    top: 18px;
+    right: 19px;
+    margin: 0;
+  }
+  .goals-analytics > .goals-panel:first-child .goals-chart-select select { max-width: 120px; }
+}
+
+@media (max-width: 560px) {
+  .goals-tools { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); }
+  .goals-tools > button { order: 1; }
+  .goals-tools > label:last-child { order: 2; white-space: nowrap; }
+  .goals-tools > label:last-child select {
+    flex: 1;
+    width: auto;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .goals-tools > .sek { order: 3; grid-column: 1 / -1; justify-self: center; }
+}

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { FormEvent, ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence } from "motion/react";
-import { ArrowUpRight, Check } from "lucide-react";
+import { ArrowUpRight, Check, Search, Smartphone } from "lucide-react";
 import SwipeToast from "../components/ui/SwipeToast";
 import AnimatedList from "../components/ui/AnimatedList";
 import RubberSegment from "../components/ui/RubberSegment";
@@ -2347,32 +2347,37 @@ export default function ProjectsPage() {
       {headerActions && createPortal(
         loading ? <div className="projects-header-skeleton-actions" aria-hidden="true"><span/><span/></div> : <>
           <button
-            className="projects-button projects-button--secondary"
+            className={`projects-button projects-button--secondary projects-header-github ${connectedGitHub ? "is-connected" : "is-disconnected"}`}
             onClick={() => githubAction(connectedGitHub ? "repositories" : "install")}
             disabled={connecting}
+            aria-label={connecting ? "Connecting to GitHub" : connectedGitHub ? "GitHub connected. Manage repositories" : needsGitHubReauthorization ? "Reconnect GitHub" : "Connect GitHub"}
           >
-            {connecting
+            <Icon name="github" />
+            <span>{connecting
               ? "Connecting…"
               : connectedGitHub
                 ? "GitHub connected"
                 : needsGitHubReauthorization
                   ? "Reconnect GitHub"
-                  : "Connect GitHub"}
+                  : "Connect GitHub"}</span>
           </button>
           {!connectedGitHub && (
             <button
-              className="projects-button projects-button--secondary"
+              className="projects-button projects-button--secondary projects-header-device"
               onClick={() => void githubAction("device_start")}
               disabled={connecting || !!deviceAuthorization}
+              aria-label={deviceAuthorization ? "Awaiting GitHub device authorization" : "Use GitHub device code"}
             >
-              {deviceAuthorization ? "Awaiting GitHub…" : "Use device code"}
+              <Smartphone size={18} aria-hidden="true" />
+              <span>{deviceAuthorization ? "Awaiting GitHub…" : "Use device code"}</span>
             </button>
           )}
           <button
-            className="projects-button projects-button--primary"
+            className="projects-button projects-button--primary projects-header-new"
             onClick={() => setFormProject("new")}
+            aria-label="New project"
           >
-            <Icon name="plus" /> New project
+            <Icon name="plus" /> <span>New project</span>
           </button>
         </>,
         headerActions,
@@ -2443,6 +2448,17 @@ export default function ProjectsPage() {
               <div className="projects-filters">
                 <Seek width={280} height={38} value={search} onChange={setSearch}
                   placeholder="Search projects, clients, tech…" ariaLabel="Search projects" />
+                <div className="projects-mobile-search-field">
+                  <Search size={17} strokeWidth={2} aria-hidden="true" />
+                  <input
+                    className="projects-mobile-search"
+                    type="search"
+                    aria-label="Search projects"
+                    placeholder="Search projects, clients, tech…"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                </div>
                 <select
                   aria-label="Filter by status"
                   value={status}

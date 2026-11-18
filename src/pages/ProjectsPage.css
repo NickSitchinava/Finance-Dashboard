@@ -286,6 +286,13 @@
 .projects-filters input {
   font-size: 12px;
 }
+.projects-mobile-search-field {
+  display: none;
+}
+.projects-header-github > svg,
+.projects-header-device > svg {
+  display: none;
+}
 .projects-card-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1121,6 +1128,9 @@
   .projects-collection {
     padding: 13px;
   }
+  .projects-collection__head {
+    padding-bottom: 14px;
+  }
   .projects-card-grid {
     grid-template-columns: 1fr;
   }
@@ -1167,6 +1177,32 @@
   }
   .projects-filters input {
     grid-column: span 2;
+  }
+  .projects-filters > .sek {
+    display: none;
+  }
+  .projects-mobile-search-field {
+    position: relative;
+    display: block;
+    grid-column: span 2;
+    min-width: 0;
+  }
+  .projects-mobile-search-field > svg {
+    position: absolute;
+    top: 50%;
+    left: 11px;
+    z-index: 1;
+    color: #726a87;
+    pointer-events: none;
+    transform: translateY(-50%);
+  }
+  .projects-filters .projects-mobile-search {
+    display: block;
+    width: 100%;
+    padding-left: 36px;
+    border: 1px solid #dcd7e9;
+    border-radius: 8px;
+    box-shadow: none;
   }
   .projects-view-switch {
     display: none;

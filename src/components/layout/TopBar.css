@@ -376,3 +376,91 @@
   .topbar--finances .topbar__finance-actions button span { display: none; }
   .topbar--finances .topbar__finance-actions .finance-header-action-icon { display: block; }
 }
+
+@media (max-width: 700px) {
+  .topbar.topbar--projects {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: var(--topbar-height);
+    padding-bottom: 0;
+  }
+  .topbar--projects + .app-layout__content {
+    padding-top: calc(20px + var(--topbar-height));
+  }
+  .topbar--projects .topbar__left {
+    min-width: 0;
+  }
+  .topbar--projects .topbar__titles {
+    min-width: 0;
+  }
+  .topbar--projects .topbar__title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .topbar--projects .topbar__right {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 3px;
+  }
+  .topbar--projects .topbar__projects-actions {
+    display: flex;
+    grid-column: auto;
+    grid-row: auto;
+    flex-wrap: nowrap;
+    gap: 5px;
+    margin: 0;
+  }
+  .topbar--projects .topbar__projects-actions .projects-button {
+    width: 36px;
+    min-width: 36px;
+    height: 36px;
+    min-height: 36px;
+    padding: 0;
+  }
+  .topbar--projects .topbar__projects-actions .projects-button > span {
+    display: none;
+  }
+  .topbar--projects .topbar__projects-actions .projects-header-github > svg,
+  .topbar--projects .topbar__projects-actions .projects-header-device > svg {
+    display: block;
+  }
+  .topbar--projects .topbar__projects-actions .projects-header-github.is-connected {
+    color: #23664d;
+    background: #e5f6ec;
+    border-color: #b8e3c8;
+  }
+  .topbar--projects .topbar__projects-actions .projects-header-github.is-disconnected {
+    color: #a24450;
+    background: #fff0f1;
+    border-color: #efc7cc;
+  }
+  .topbar--projects .projects-header-skeleton-actions {
+    gap: 5px;
+  }
+  .topbar--projects .projects-header-skeleton-actions span,
+  .topbar--projects .projects-header-skeleton-actions span:last-child {
+    width: 36px;
+  }
+}
+
+@media (max-width: 700px) {
+  .topbar.topbar--goals {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: var(--topbar-height);
+    padding-bottom: 0;
+  }
+  .topbar--goals .topbar__left,
+  .topbar--goals .topbar__titles { min-width: 0; }
+  .topbar--goals .topbar__title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .topbar--goals .topbar__right { display: flex; flex: none; align-items: center; gap: 5px; }
+  .topbar--goals .topbar__goals-actions { display: flex; margin: 0; }
+}

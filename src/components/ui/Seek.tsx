@@ -254,6 +254,7 @@ export function Seek({
   placeholder = "Search",
   ariaLabel = "Search",
   className,
+  alwaysOpenOnMobile = false,
 }: {
   spring?: number;
   width?: number;
@@ -264,6 +265,7 @@ export function Seek({
   placeholder?: string;
   ariaLabel?: string;
   className?: string;
+  alwaysOpenOnMobile?: boolean;
 } = {}) {
   /* ── narrow, and it can change under you ────────────────
      A phone rotates and a desktop window gets dragged narrow;
@@ -286,7 +288,8 @@ export function Seek({
   const beat = useRef(0);
   const rest = useRef(0);
 
-  const [open, setOpen] = useState(() => Boolean(controlledValue));
+  const [isOpen, setOpen] = useState(() => Boolean(controlledValue));
+  const open = isOpen || (alwaysOpenOnMobile && snug);
   const [press, setPress] = useState(false);
   const [localValue, setLocalValue] = useState("");
   const value = controlledValue ?? localValue;
@@ -343,6 +346,7 @@ export function Seek({
      field exists, and closing over it would either hide it or
      throw it away. */
   const away = () => {
+    if (alwaysOpenOnMobile && snug) return;
     if (value.trim()) return;
     setOpen(false);
   };
